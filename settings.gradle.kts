@@ -17,7 +17,9 @@ dependencyResolutionManagement {
 rootProject.name = "AS-Academy-MainUi"
 include(":main-ui")
 
-// MainUi consumes Core APIs but owns the visual/presentation layer.
-// CI and local development can override the sibling path without editing source files.
-val academyCoreDir = System.getenv("ACADEMY_CORE_DIR") ?: "../AS-Academy-Core"
-includeBuild(academyCoreDir)
+// MainUi can build standalone by including Core itself.
+// A Course App that already includes Core sets ACADEMY_MAIN_UI_EXTERNAL_CORE=1 to prevent a duplicate composite build.
+if (System.getenv("ACADEMY_MAIN_UI_EXTERNAL_CORE") != "1") {
+    val academyCoreDir = System.getenv("ACADEMY_CORE_DIR") ?: "../AS-Academy-Core"
+    includeBuild(academyCoreDir)
+}
