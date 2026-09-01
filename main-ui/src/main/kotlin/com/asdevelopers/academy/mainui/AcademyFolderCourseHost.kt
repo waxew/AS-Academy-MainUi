@@ -1,0 +1,361 @@
+package com.asdevelopers.academy.mainui
+
+import android.content.res.AssetManager
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import com.asdevelopers.academy.core.content.LearningExtras
+import com.asdevelopers.academy.core.content.LearningExtrasLoader
+import com.asdevelopers.academy.core.ui.screens.AcademyExerciseScreen
+import com.asdevelopers.academy.core.ui.screens.AcademyProjectScreen
+import com.asdevelopers.academy.core.ui.screens.AcademyQuizScreen
+import com.asdevelopers.academy.course.model.Chapter
+import com.asdevelopers.academy.course.model.CourseLevel
+import com.asdevelopers.academy.course.model.CourseLevelType
+import com.asdevelopers.academy.course.model.Lesson
+import com.asdevelopers.academy.course.model.LessonBlock
+import com.asdevelopers.academy.course.model.LessonBlockType
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONObject
+
+private data class FolderCourseData(
+    val levels: List<CourseLevel>,
+    val chapters: List<Chapter>,
+    val lessons: List<Lesson>,
+    val extras: LearningExtras
+)
+
+private sealed interface CourseRoute {
+    data object Home : CourseRoute
+    data class Chapters(val levelId: String) : CourseRoute
+    data class Lessons(val chapterId: String) : CourseRoute
+    data class LessonDetail(val lessonId: String) : CourseRoute
+    data object Catalog : CourseRoute
+    data class QuizDetail(val quizId: String) : CourseRoute
+    data class ExerciseDetail(val exerciseId: String) : CourseRoute
+    data class ProjectDetail(val projectId: String) : CourseRoute
+}
+
+/**
+ * MainUi host for folder-based Course Packages copied from MainCourse into Android assets.
+ * The Course App supplies only courseId/title/branding. Curriculum text is always read from
+ * `course/<courseId>` and therefore MainCourse remains the single source of truth.
+ */
+@Composable
+fun AcademyFolderCourseHost(
+    courseId: String,
+    title: String,
+    branding: com.asdevelopers.academy.course.model.CourseBranding,
+    darkTheme: Boolean = false
+) {
+    val context = LocalContext.current
+    var data by remember(courseId) { mutableStateOf<FolderCourseData?>(null) }
+    var error by remember(courseId) { mutableStateOf<String?>(null) }
+    var route by remember(courseId) { mutableStateOf<CourseRoute>(CourseRoute.Home) }
+
+    LaunchedEffect(courseId) {
+        runCatching { loadFolderCourse(context.assets, courseId) }
+            .onSuccess { data = it }
+            .onFailure { error = it.message ?: it.toString() }
+    }
+
+    AcademyMainUi(
+        config = AcademyMainUiConfig(
+            courseId = courseId,
+            branding = branding,
+            darkTheme = darkTheme
+        )
+    ) {
+        when {
+            error != null -> AcademyMainUiMessage("خطا در بارگذاری محتوای دوره: ${error.orEmpty()}")
+            data == null -> AcademyMainUiLoading()
+            else -> FolderCourseRouter(
+                title = title,
+                data = requireNotNull(data),
+                route = route,
+                onNavigate = { route = it },
+                onBack = { route = CourseRoute.Home }
+            )
+        }
+    }
+}
+
+@Composable
+private fun FolderCourseRouter(
+    title: String,
+    data: FolderCourseData,
+    route: CourseRoute,
+    onNavigate: (CourseRoute) -> Unit,
+    onBack: () -> Unit
+) {
+    when (route) {
+        CourseRoute.Home -> CourseHome(title, data, onNavigate)
+        is CourseRoute.Chapters -> ChapterList(data, route.levelId, onNavigate, onBack)
+        is CourseRoute.Lessons -> LessonList(data, route.chapterId, onNavigate, onBack)
+        is CourseRoute.LessonDetail -> {
+            val lesson = data.lessons.firstOrNull { it.id == route.lessonId }
+            if (lesson == null) AcademyMainUiMessage("درس پیدا نشد")
+            else LessonReader(lesson, onNavigate, onBack)
+        }
+        CourseRoute.Catalog -> Catalog(data, onNavigate, onBack)
+        is CourseRoute.QuizDetail -> {
+            val quiz = data.extras.quizzes.firstOrNull { it.id == route.quizId }
+            if (quiz == null) AcademyMainUiMessage("آزمون پیدا نشد")
+            else DetailContainer("بازگشت", onBack) { AcademyQuizScreen(quiz = quiz) }
+        }
+        is CourseRoute.ExerciseDetail -> {
+            val exercise = data.extras.exercises.firstOrNull { it.id == route.exerciseId }
+            if (exercise == null) AcademyMainUiMessage("تمرین پیدا نشد")
+            else DetailContainer("بازگشت", onBack) { AcademyExerciseScreen(exercise = exercise) }
+        }
+        is CourseRoute.ProjectDetail -> {
+            val project = data.extras.projects.firstOrNull { it.id == route.projectId }
+            if (project == null) AcademyMainUiMessage("پروژه پیدا نشد")
+            else DetailContainer("بازگشت", onBack) { AcademyProjectScreen(project = project) }
+        }
+    }
+}
+
+@Composable
+private fun CourseHome(title: String, data: FolderCourseData, onNavigate: (CourseRoute) -> Unit) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            Text(title, style = MaterialTheme.typography.headlineMedium)
+            Text("${data.levels.size} سطح • ${data.chapters.size} فصل • ${data.lessons.size} درس")
+        }
+        item {
+            Button(onClick = { onNavigate(CourseRoute.Catalog) }, modifier = Modifier.fillMaxWidth()) {
+                Text("تمرین‌ها، آزمون‌ها و پروژه‌ها")
+            }
+        }
+        items(data.levels.sortedBy { it.order }, key = { it.id }) { level ->
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(level.title, style = MaterialTheme.typography.titleLarge)
+                    if (level.description.isNotBlank()) Text(level.description)
+                    val chapterCount = data.chapters.count { it.levelId == level.id }
+                    Text("$chapterCount فصل")
+                    Button(onClick = { onNavigate(CourseRoute.Chapters(level.id)) }) { Text("مشاهده فصل‌ها") }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChapterList(data: FolderCourseData, levelId: String, onNavigate: (CourseRoute) -> Unit, onBack: () -> Unit) {
+    val chapters = data.chapters.filter { it.levelId == levelId }.sortedBy { it.order }
+    LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        item { BackButton(onBack) }
+        items(chapters, key = { it.id }) { chapter ->
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(chapter.title, style = MaterialTheme.typography.titleLarge)
+                    Text(chapter.description)
+                    Text("${data.lessons.count { it.chapterId == chapter.id }} درس")
+                    Button(onClick = { onNavigate(CourseRoute.Lessons(chapter.id)) }) { Text("ورود به فصل") }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LessonList(data: FolderCourseData, chapterId: String, onNavigate: (CourseRoute) -> Unit, onBack: () -> Unit) {
+    val lessons = data.lessons.filter { it.chapterId == chapterId }.sortedBy { it.order }
+    LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        item { BackButton(onBack) }
+        items(lessons, key = { it.id }) { lesson ->
+            Button(onClick = { onNavigate(CourseRoute.LessonDetail(lesson.id)) }, modifier = Modifier.fillMaxWidth()) {
+                Text("${lesson.title} • ${lesson.estimatedMinutes} دقیقه")
+            }
+        }
+    }
+}
+
+@Composable
+private fun LessonReader(lesson: Lesson, onNavigate: (CourseRoute) -> Unit, onBack: () -> Unit) {
+    LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        item { BackButton(onBack) }
+        item {
+            Text(lesson.title, style = MaterialTheme.typography.headlineMedium)
+            if (lesson.summary.isNotBlank()) Text(lesson.summary)
+            Text("زمان تقریبی: ${lesson.estimatedMinutes} دقیقه")
+        }
+        items(lesson.blocks, key = { it.id }) { block ->
+            LessonBlockView(block = block, onNavigate = onNavigate)
+        }
+    }
+}
+
+@Composable
+private fun LessonBlockView(block: LessonBlock, onNavigate: (CourseRoute) -> Unit) {
+    val style = when (block.type) {
+        LessonBlockType.TITLE -> MaterialTheme.typography.headlineSmall
+        LessonBlockType.SUBTITLE -> MaterialTheme.typography.titleLarge
+        else -> MaterialTheme.typography.bodyLarge
+    }
+    when (block.type) {
+        LessonBlockType.CODE, LessonBlockType.OUTPUT, LessonBlockType.TIP, LessonBlockType.WARNING,
+        LessonBlockType.NOTE, LessonBlockType.IMPORTANT, LessonBlockType.DIAGRAM, LessonBlockType.TABLE -> {
+            Card(Modifier.fillMaxWidth()) {
+                Text(block.content, modifier = Modifier.padding(14.dp), style = style)
+            }
+        }
+        LessonBlockType.EXERCISE, LessonBlockType.EXERCISE_LINK -> {
+            val id = block.metadata["exerciseId"]
+            Button(onClick = { if (id != null) onNavigate(CourseRoute.ExerciseDetail(id)) }, modifier = Modifier.fillMaxWidth()) {
+                Text(block.content.ifBlank { "باز کردن تمرین" })
+            }
+        }
+        LessonBlockType.QUIZ -> {
+            val id = block.metadata["quizId"]
+            Button(onClick = { if (id != null) onNavigate(CourseRoute.QuizDetail(id)) }, modifier = Modifier.fillMaxWidth()) {
+                Text(block.content.ifBlank { "باز کردن آزمون" })
+            }
+        }
+        LessonBlockType.PROJECT_LINK, LessonBlockType.PROJECT -> {
+            val id = block.metadata["projectId"]
+            Button(onClick = { if (id != null) onNavigate(CourseRoute.ProjectDetail(id)) }, modifier = Modifier.fillMaxWidth()) {
+                Text(block.content.ifBlank { "باز کردن پروژه" })
+            }
+        }
+        else -> Text(block.content, style = style)
+    }
+}
+
+@Composable
+private fun Catalog(data: FolderCourseData, onNavigate: (CourseRoute) -> Unit, onBack: () -> Unit) {
+    LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        item { BackButton(onBack) }
+        item { Text("آزمون‌ها", style = MaterialTheme.typography.headlineSmall) }
+        items(data.extras.quizzes, key = { it.id }) { quiz ->
+            Button(onClick = { onNavigate(CourseRoute.QuizDetail(quiz.id)) }, modifier = Modifier.fillMaxWidth()) { Text(quiz.title) }
+        }
+        item { Text("تمرین‌ها", style = MaterialTheme.typography.headlineSmall) }
+        items(data.extras.exercises, key = { it.id }) { exercise ->
+            Button(onClick = { onNavigate(CourseRoute.ExerciseDetail(exercise.id)) }, modifier = Modifier.fillMaxWidth()) { Text(exercise.title) }
+        }
+        item { Text("پروژه‌ها", style = MaterialTheme.typography.headlineSmall) }
+        items(data.extras.projects, key = { it.id }) { project ->
+            Button(onClick = { onNavigate(CourseRoute.ProjectDetail(project.id)) }, modifier = Modifier.fillMaxWidth()) { Text(project.title) }
+        }
+    }
+}
+
+@Composable
+private fun DetailContainer(label: String, onBack: () -> Unit, content: @Composable () -> Unit) {
+    Column(Modifier.fillMaxSize()) {
+        Button(onClick = onBack, modifier = Modifier.padding(12.dp)) { Text(label) }
+        Column(Modifier.weight(1f)) { content() }
+    }
+}
+
+@Composable
+private fun BackButton(onBack: () -> Unit) {
+    Button(onClick = onBack) { Text("بازگشت") }
+}
+
+private suspend fun loadFolderCourse(assets: AssetManager, courseId: String): FolderCourseData = withContext(Dispatchers.IO) {
+    val root = "course/$courseId"
+    val levels = readObjects(assets, "$root/levels.json").map { json ->
+        CourseLevel(
+            id = json.getString("id"),
+            courseId = json.optString("courseId", courseId).ifBlank { courseId },
+            type = enumValue(json.optString("type", inferLevelType(json.getString("id"))), CourseLevelType.BEGINNER),
+            title = json.getString("title"),
+            order = json.optInt("order", 0),
+            description = json.optString("description")
+        )
+    }
+    val chapters = readObjects(assets, "$root/chapters.json").map { json ->
+        Chapter(
+            id = json.getString("id"),
+            levelId = json.getString("levelId"),
+            title = json.getString("title"),
+            description = json.optString("description"),
+            order = json.optInt("order", 0),
+            prerequisites = json.optJSONArray("prerequisites").toStrings()
+        )
+    }
+    val lessons = assets.list("$root/lessons").orEmpty()
+        .filter { it.endsWith(".json") }
+        .sorted()
+        .flatMap { readObjects(assets, "$root/lessons/$it") }
+        .map(::parseLesson)
+    val extras = LearningExtrasLoader(assets).load(courseId)
+    FolderCourseData(levels, chapters, lessons, extras)
+}
+
+private fun parseLesson(json: JSONObject): Lesson = Lesson(
+    id = json.getString("id"),
+    chapterId = json.getString("chapterId"),
+    title = json.getString("title"),
+    summary = json.optString("summary"),
+    order = json.optInt("order", 0),
+    estimatedMinutes = json.optInt("estimatedMinutes", 1).coerceAtLeast(1),
+    blocks = json.optJSONArray("blocks").toObjects().map { block ->
+        LessonBlock(
+            id = block.getString("id"),
+            type = enumValue(block.getString("type"), LessonBlockType.PARAGRAPH),
+            content = block.optString("content"),
+            metadata = block.optJSONObject("metadata").toStringMap(),
+            accessibilityLabel = block.optString("accessibilityLabel").takeIf { it.isNotBlank() }
+        )
+    },
+    tags = json.optJSONArray("tags").toStrings().toSet(),
+    prerequisites = json.optJSONArray("prerequisites").toStrings()
+)
+
+private fun readObjects(assets: AssetManager, path: String): List<JSONObject> {
+    val text = assets.open(path).bufferedReader().use { it.readText() }.trim()
+    return when {
+        text.startsWith("[") -> JSONArray(text).toObjects()
+        text.startsWith("{") -> listOf(JSONObject(text))
+        else -> emptyList()
+    }
+}
+
+private fun JSONArray?.toObjects(): List<JSONObject> =
+    if (this == null) emptyList() else (0 until length()).map { getJSONObject(it) }
+
+private fun JSONArray?.toStrings(): List<String> =
+    if (this == null) emptyList() else (0 until length()).map { optString(it) }
+
+private fun JSONObject?.toStringMap(): Map<String, String> {
+    if (this == null) return emptyMap()
+    return keys().asSequence().associateWith { key -> optString(key) }
+}
+
+private inline fun <reified T : Enum<T>> enumValue(raw: String, fallback: T): T =
+    runCatching { enumValueOf<T>(raw.trim().uppercase()) }.getOrDefault(fallback)
+
+private fun inferLevelType(id: String): String = when {
+    "fund" in id -> "FUNDAMENTALS"
+    "beg" in id -> "BEGINNER"
+    "adv" in id -> "ADVANCED"
+    "pro" in id || "spec" in id -> "SPECIALIST"
+    else -> "BEGINNER"
+}
