@@ -51,7 +51,7 @@ jobs:
           touch _site/.nojekyll
           test -s _site/index.html
           test -s _site/data/index.json
-          node -e "const i=require('./_site/data/index.json'); if(!i.courses.length) process.exit(1); console.log('Web snapshot:', i.courses.length, 'courses', i.files.length, 'files')"
+          node -e "const i=require('./_site/data/index.json'); const fileCount=i.courses.reduce((n,c)=>n+c.files.length,0); if(!i.courses.length || !fileCount) process.exit(1); console.log('Web snapshot:', i.courses.length, 'courses', fileCount, 'files')"
 
       - name: Upload web build artifact
         uses: actions/upload-artifact@v4
