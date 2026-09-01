@@ -22,9 +22,14 @@ android {
 }
 
 dependencies {
-    // MainUi compiles against the shared contracts, while each Course App provides its pinned Core runtime.
-    // This avoids packaging a second independent Core copy beside the app's local Core module.
-    compileOnly("com.asdevelopers.academy:core:1.3.0")
+    // وقتی MainUi داخل Course App مصرف می‌شود، همان Core pin‌شده Host را استفاده می‌کند.
+    // در توسعه standalone می‌توان Core منتشرشده را جایگزین کرد.
+    val hostCore = rootProject.findProject(":core")
+    if (hostCore != null) {
+        compileOnly(hostCore)
+    } else {
+        compileOnly("com.asdevelopers.academy:core:1.3.0")
+    }
 
     implementation("androidx.core:core-ktx:1.17.0")
     implementation(platform("androidx.compose:compose-bom:2025.12.00"))
