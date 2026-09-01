@@ -1,0 +1,73 @@
+name: Deploy MainCourse Web PWA
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'web/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+  schedule:
+    # MainCourse is a separate repository, so refresh the public web snapshot hourly.
+    - cron: '17 * * * *'
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: maincourse-pages
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout MainUi
+        uses: actions/checkout@v5
+
+      - name: Checkout latest MainCourse
+        uses: actions/checkout@v5
+        with:
+          repository: waxew/AS-Academy-MainCourse
+          path: AS-Academy-MainCourse
+
+      - name: Validate web JavaScript
+        run: |
+          node --check web/app.js
+          node --check web/sw.js
+          node --check web/scripts/build-index.mjs
+
+      - name: Prepare integrated web site
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf _site
+          mkdir -p _site/data
+          cp -R web/. _site/
+          rm -rf _site/scripts
+          cp -R AS-Academy-MainCourse/courses _site/data/courses
+          export MAINCOURSE_SHA="$(git -C AS-Academy-MainCourse rev-parse HEAD)"
+          node web/scripts/build-index.mjs AS-Academy-MainCourse/courses _site/data/index.json
+          touch _site/.nojekyll
+          test -s _site/index.html
+          test -s _site/data/index.json
+          node -e "const i=require('./_site/data/index.json'); if(!i.courses.length) process.exit(1); console.log('Web snapshot:', i.courses.length, 'courses')"
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
