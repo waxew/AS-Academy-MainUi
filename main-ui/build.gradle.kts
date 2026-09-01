@@ -22,8 +22,9 @@ android {
 }
 
 dependencies {
-    // MainUi is the public presentation layer; Core remains the runtime/engine underneath it.
-    api("com.asdevelopers.academy:core:1.3.0")
+    // MainUi compiles against the shared contracts, while each Course App provides its pinned Core runtime.
+    // This avoids packaging a second independent Core copy beside the app's local Core module.
+    compileOnly("com.asdevelopers.academy:core:1.3.0")
 
     implementation("androidx.core:core-ktx:1.17.0")
     implementation(platform("androidx.compose:compose-bom:2025.12.00"))
