@@ -17,9 +17,9 @@ dependencyResolutionManagement {
 rootProject.name = "AS-Academy-MainUi"
 include(":main-ui")
 
-// MainUi can build standalone by including Core itself.
-// A Course App that already includes Core sets ACADEMY_MAIN_UI_EXTERNAL_CORE=1 to prevent a duplicate composite build.
-if (System.getenv("ACADEMY_MAIN_UI_EXTERNAL_CORE") != "1") {
+// When MainUi is the root build it includes Core so it can be developed and tested standalone.
+// When MainUi is itself included by a Course App, the parent build owns the single Core composite.
+if (gradle.parent == null) {
     val academyCoreDir = System.getenv("ACADEMY_CORE_DIR") ?: "../AS-Academy-Core"
     includeBuild(academyCoreDir)
 }
