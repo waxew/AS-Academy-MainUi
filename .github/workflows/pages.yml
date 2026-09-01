@@ -1,4 +1,4 @@
-name: Deploy MainCourse Web PWA
+name: Build MainCourse Web PWA
 
 on:
   push:
@@ -8,23 +8,18 @@ on:
       - '.github/workflows/pages.yml'
   workflow_dispatch:
   schedule:
-    # MainCourse is a separate repository, so refresh the public web snapshot hourly.
+    # MainCourse lives in a separate repository. Rebuild the public snapshot hourly.
     - cron: '17 * * * *'
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
-  group: maincourse-pages
+  group: maincourse-web
   cancel-in-progress: true
 
 jobs:
-  build-and-deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  build-and-publish:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout MainUi
@@ -56,18 +51,27 @@ jobs:
           touch _site/.nojekyll
           test -s _site/index.html
           test -s _site/data/index.json
-          node -e "const i=require('./_site/data/index.json'); if(!i.courses.length) process.exit(1); console.log('Web snapshot:', i.courses.length, 'courses')"
+          node -e "const i=require('./_site/data/index.json'); if(!i.courses.length) process.exit(1); console.log('Web snapshot:', i.courses.length, 'courses', i.files.length, 'files')"
 
-      - name: Configure GitHub Pages
-        uses: actions/configure-pages@v5
+      - name: Upload web build artifact
+        uses: actions/upload-artifact@v4
         with:
-          enablement: true
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v4
-        with:
+          name: AS-Academy-MainCourse-Web
           path: _site
+          if-no-files-found: error
+          retention-days: 14
 
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Publish ready-to-serve gh-pages branch
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          cd _site
+          git init -b gh-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "deploy: MainCourse web ${GITHUB_SHA}"
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push --force origin gh-pages
