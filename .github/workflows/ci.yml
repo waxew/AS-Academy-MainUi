@@ -1,0 +1,48 @@
+name: MainUi quality gates
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mainui-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build shared MainUi library
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout MainUi
+        uses: actions/checkout@v5
+        with:
+          path: AS-Academy-MainUi
+
+      - name: Checkout AS Academy Core
+        uses: actions/checkout@v5
+        with:
+          repository: waxew/AS-Academy-Core
+          path: AS-Academy-Core
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android API 36
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Set up Gradle cache
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Lint and build MainUi
+        run: ./AS-Academy-Core/gradlew -p AS-Academy-MainUi :main-ui:lintDebug :main-ui:assembleDebug --stacktrace
