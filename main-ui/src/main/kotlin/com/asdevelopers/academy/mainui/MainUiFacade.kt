@@ -20,9 +20,11 @@ import com.asdevelopers.academy.core.content.CourseBundle
 import com.asdevelopers.academy.core.settings.AcademyProfile
 import com.asdevelopers.academy.core.ui.components.AcademyAppShell
 import com.asdevelopers.academy.core.ui.components.AcademyDrawerItem
+import com.asdevelopers.academy.core.ui.content.LessonRenderer
 import com.asdevelopers.academy.core.ui.screens.AcademyLearningCatalogScreen
 import com.asdevelopers.academy.core.ui.theme.AcademyTheme
 import com.asdevelopers.academy.course.model.CourseBranding
+import com.asdevelopers.academy.course.model.Lesson
 
 /**
  * Transitional public MainUi facade.
@@ -144,7 +146,29 @@ fun AcademyCourseHomeScreen(
     }
 }
 
-/** Shared searchable/filterable activity catalog backed by Core 1.3 models and navigation callbacks. */
+/**
+ * Shared Lesson Reader. Course apps only select a Lesson ID; all block rendering remains centralized.
+ */
+@Composable
+fun AcademyLessonReaderScreen(
+    lesson: Lesson,
+    onExerciseClick: (String) -> Unit = {},
+    onQuizClick: (String) -> Unit = {},
+    onProjectClick: (String) -> Unit = {},
+    modifier: Modifier = Modifier
+) {
+    LessonRenderer(
+        lesson = lesson,
+        modifier = modifier
+            .fillMaxSize()
+            .padding(20.dp),
+        onExerciseClick = onExerciseClick,
+        onQuizClick = onQuizClick,
+        onProjectClick = onProjectClick
+    )
+}
+
+/** Shared searchable/filterable activity catalog backed by Core models and navigation callbacks. */
 @Composable
 fun AcademyCourseLearningCatalog(
     bundle: CourseBundle,
