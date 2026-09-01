@@ -22,13 +22,13 @@ android {
 }
 
 dependencies {
-    // وقتی MainUi داخل Course App مصرف می‌شود، همان Core pin‌شده Host را استفاده می‌کند.
-    // در توسعه standalone می‌توان Core منتشرشده را جایگزین کرد.
+    // When MainUi is consumed by a Course App, the host's pinned Core remains authoritative.
+    // In standalone development the included AS-Academy-Core composite substitutes this coordinate.
     val hostCore = rootProject.findProject(":core")
     if (hostCore != null) {
         compileOnly(hostCore)
     } else {
-        compileOnly("com.asdevelopers.academy:core:1.3.0")
+        compileOnly("com.asdevelopers.academy:core:1.4.0")
     }
 
     implementation("androidx.core:core-ktx:1.17.0")
