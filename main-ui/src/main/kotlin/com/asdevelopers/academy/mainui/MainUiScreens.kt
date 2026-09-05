@@ -14,13 +14,9 @@ import com.asdevelopers.academy.core.review.ReviewRating
 import com.asdevelopers.academy.core.settings.AcademySettings
 import com.asdevelopers.academy.core.settings.AcademyThemeMode
 import com.asdevelopers.academy.core.ui.components.AcademyDrawerItem
-import com.asdevelopers.academy.core.ui.content.LessonRenderer
 import com.asdevelopers.academy.core.ui.screens.AcademyAboutScreen
-import com.asdevelopers.academy.core.ui.screens.AcademyExerciseScreen
 import com.asdevelopers.academy.core.ui.screens.AcademyFlashcardReviewScreen
 import com.asdevelopers.academy.core.ui.screens.AcademyPlacementSummaryScreen
-import com.asdevelopers.academy.core.ui.screens.AcademyProjectScreen
-import com.asdevelopers.academy.core.ui.screens.AcademyQuizScreen
 import com.asdevelopers.academy.core.ui.screens.AcademySettingsScreen
 import com.asdevelopers.academy.core.ui.screens.AcademyWeakTopicReviewScreen
 import com.asdevelopers.academy.core.ui.theme.DefaultAcademyBranding
@@ -38,7 +34,7 @@ typealias AcademyMainUiDrawerItem = AcademyDrawerItem
 val DefaultMainUiBranding: CourseBranding
     get() = DefaultAcademyBranding
 
-/** Shared lesson reader backed by the Core block renderer. */
+/** Shared lesson reader owned by MainUi. */
 @Composable
 fun AcademyMainUiLessonScreen(
     lesson: Lesson,
@@ -47,7 +43,7 @@ fun AcademyMainUiLessonScreen(
     onQuizClick: (String) -> Unit = {},
     onProjectClick: (String) -> Unit = {}
 ) {
-    LessonRenderer(
+    AcademyLessonRenderer(
         lesson = lesson,
         modifier = modifier,
         onExerciseClick = onExerciseClick,
@@ -99,14 +95,14 @@ fun AcademyMainUiQuizScreen(
     modifier: Modifier = Modifier,
     onCompleted: (QuizScore) -> Unit = {}
 ) {
-    AcademyQuizScreen(
+    AcademyQuizRenderer(
         quiz = quiz,
         modifier = modifier,
         onCompleted = onCompleted
     )
 }
 
-/** Shared exercise authoring/answer surface. */
+/** Shared exercise authoring/answer surface owned by MainUi. */
 @Composable
 fun AcademyMainUiExerciseScreen(
     exercise: Exercise,
@@ -115,7 +111,7 @@ fun AcademyMainUiExerciseScreen(
     onDraftChanged: (String) -> Unit = {},
     onCompleted: (String) -> Unit = {}
 ) {
-    AcademyExerciseScreen(
+    AcademyExerciseRenderer(
         exercise = exercise,
         modifier = modifier,
         initialAnswer = initialAnswer,
@@ -124,7 +120,7 @@ fun AcademyMainUiExerciseScreen(
     )
 }
 
-/** Shared project milestone/draft surface. */
+/** Shared project milestone/draft surface owned by MainUi. */
 @Composable
 fun AcademyMainUiProjectScreen(
     project: LearningProject,
@@ -132,7 +128,7 @@ fun AcademyMainUiProjectScreen(
     modifier: Modifier = Modifier,
     onProgressChanged: (ProjectProgress) -> Unit = {}
 ) {
-    AcademyProjectScreen(
+    AcademyProjectRenderer(
         project = project,
         progress = progress,
         modifier = modifier,
