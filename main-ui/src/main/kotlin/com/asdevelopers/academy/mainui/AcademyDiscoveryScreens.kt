@@ -22,14 +22,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.asdevelopers.academy.core.database.AchievementEntity
-import com.asdevelopers.academy.core.database.SearchIndexEntity
+import com.asdevelopers.academy.core.model.AcademySearchResult
+import com.asdevelopers.academy.core.model.AcademyUnlockedAchievement
 import kotlinx.coroutines.launch
 
-/**
- * Course-scoped full-text search backed by Core's SearchRepository.
- * Search indexing remains a Core concern; MainUi only owns query interaction and result rendering.
- */
+/** Course-scoped full-text search; MainUi only owns interaction and rendering. */
 @Composable
 fun AcademySearchScreen(
     courseId: String,
@@ -39,7 +36,7 @@ fun AcademySearchScreen(
 ) {
     val scope = rememberCoroutineScope()
     var query by rememberSaveable(courseId) { mutableStateOf("") }
-    var results by remember(courseId) { mutableStateOf(emptyList<SearchIndexEntity>()) }
+    var results by remember(courseId) { mutableStateOf(emptyList<AcademySearchResult>()) }
     var hasSearched by rememberSaveable(courseId) { mutableStateOf(false) }
 
     LazyColumn(
@@ -83,7 +80,7 @@ fun AcademySearchScreen(
 
 @Composable
 private fun SearchResultCard(
-    result: SearchIndexEntity,
+    result: AcademySearchResult,
     onOpen: (refId: String, refType: String) -> Unit
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
@@ -99,10 +96,7 @@ private fun SearchResultCard(
     }
 }
 
-/**
- * Displays achievements already unlocked by Core.
- * Unlock rules intentionally stay outside MainUi so presentation cannot mutate learning policy.
- */
+/** Displays achievements already unlocked by Core; MainUi never owns unlock policy. */
 @Composable
 fun AcademyAchievementsScreen(
     courseId: String,
@@ -111,7 +105,7 @@ fun AcademyAchievementsScreen(
     onBack: () -> Unit
 ) {
     val achievements by runtime.achievementRepository.observeCourse(courseId).collectAsState(initial = emptyList())
-    val sorted = achievements.sortedByDescending(AchievementEntity::unlockedAt)
+    val sorted = achievements.sortedByDescending(AcademyUnlockedAchievement::unlockedAtEpochMillis)
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(16.dp),
