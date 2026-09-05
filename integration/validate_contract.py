@@ -32,19 +32,24 @@ require("includeBuild" in settings, "Standalone MainUi development must composit
 rules = contract.get("architectureRules", {})
 require(rules.get("mainUiConsumesCorePublicApiOnly") is True, "MainUi public-API boundary is not enabled")
 
-# MainUi is presentation-only. It may consume read models currently exposed by Core repositories,
-# but it must never construct/access persistence or backend implementations directly.
+# MainUi is a presentation/design system. Persistence, backend and filesystem implementations
+# belong to Core and must never leak into the shared visual layer.
 for source in (ROOT / "main-ui" / "src").rglob("*.kt"):
     text = source.read_text(encoding="utf-8")
     rel = source.relative_to(ROOT)
-    for forbidden in ("androidx.room.", "io.supabase.", "java.sql."):
+    for forbidden in (
+        "com.asdevelopers.academy.core.database.",
+        "androidx.room.",
+        "io.supabase.",
+        "java.sql.",
+        "java.io."
+    ):
         require(forbidden not in text, f"{rel}: MainUi must not depend on implementation package {forbidden}")
     require("AcademyDatabase" not in text, f"{rel}: MainUi must not access Core database implementation")
-    require(re.search(r"import\s+com\.asdevelopers\.academy\.core\.database\..*Dao", text) is None,
-            f"{rel}: MainUi must not import Core DAOs")
 
 runtime = (ROOT / "main-ui" / "src" / "main" / "kotlin" / "com" / "asdevelopers" / "academy" / "mainui" / "AcademyMainUiRuntime.kt").read_text(encoding="utf-8")
 require("AcademyRuntime" in runtime, "MainUi runtime must adapt Core AcademyRuntime")
+require("AcademyDatabase" not in runtime, "MainUi runtime must not create/access AcademyDatabase")
 
 if errors:
     print("Foundation contract validation failed:")
@@ -52,4 +57,4 @@ if errors:
         print(f" - {error}")
     sys.exit(1)
 
-print("Foundation contract OK: MainUi is presentation-only and aligned with Core runtime")
+print("Foundation contract OK: MainUi is presentation-only and consumes Core public models/runtime")
