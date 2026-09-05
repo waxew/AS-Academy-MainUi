@@ -17,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -96,7 +97,7 @@ fun AcademyFolderCourseHost(
     darkTheme: Boolean = false
 ) {
     val context = LocalContext.current
-    var data by rememberSaveable(courseId) { mutableStateOf<FolderCourseData?>(null) }
+    var data by remember(courseId) { mutableStateOf<FolderCourseData?>(null) }
     var error by rememberSaveable(courseId) { mutableStateOf<String?>(null) }
     var routeStack by rememberSaveable(courseId) { mutableStateOf(listOf(CourseRoute.Home.encode())) }
 
@@ -109,7 +110,7 @@ fun AcademyFolderCourseHost(
         if (routeStack.size > 1) routeStack = routeStack.dropLast(1)
     }
 
-    BackHandler(enabled = routeStack.size > 1, onBack = ::navigateBack)
+    BackHandler(enabled = routeStack.size > 1) { navigateBack() }
 
     LaunchedEffect(courseId) {
         data = null
@@ -134,8 +135,8 @@ fun AcademyFolderCourseHost(
                 title = title,
                 data = requireNotNull(data),
                 route = decodeRoute(routeStack.lastOrNull().orEmpty()),
-                onNavigate = ::navigate,
-                onBack = ::navigateBack
+                onNavigate = { navigate(it) },
+                onBack = { navigateBack() }
             )
         }
     }
