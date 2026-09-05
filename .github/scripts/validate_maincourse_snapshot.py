@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Validate real MainCourse folder packages with the same reference rules MainUi enforces."""
+"""Validate release-ready MainCourse packages and audit legacy/migrating packages."""
 
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -48,7 +49,7 @@ def duplicate_ids(items: Iterable[dict[str, Any]]) -> set[str]:
     return duplicates
 
 
-def validate_course(course_root: Path) -> list[str]:
+def validate_course(course_root: Path) -> tuple[list[str], dict[str, int]]:
     errors: list[str] = []
     levels = objects_from_file(course_root / "levels.json")
     chapters = objects_from_file(course_root / "chapters.json")
@@ -110,48 +111,116 @@ def validate_course(course_root: Path) -> list[str]:
                     f"lesson {lesson_id} block {block_id}: {key} '{target_id}' not found in {target_kind}s"
                 )
 
+    counts = {kind: len(items) for kind, items in groups.items()}
+    return errors, counts
+
+
+def discover_courses(courses_root: Path) -> dict[str, Path]:
+    result: dict[str, Path] = {}
+    for course_root in sorted(courses_root.glob("*/course")):
+        if (
+            (course_root / "levels.json").is_file()
+            and (course_root / "chapters.json").is_file()
+            and (course_root / "lessons").is_dir()
+        ):
+            result[course_root.parent.name] = course_root
+    return result
+
+
+def print_summary(course_id: str, counts: dict[str, int], prefix: str) -> None:
     print(
-        f"Validated {course_root}: "
-        f"{len(levels)} levels, {len(chapters)} chapters, {len(lessons)} lessons, "
-        f"{len(quizzes)} quizzes, {len(exercises)} exercises, {len(projects)} projects"
+        f"{prefix} {course_id}: "
+        f"{counts['level']} levels, {counts['chapter']} chapters, {counts['lesson']} lessons, "
+        f"{counts['quiz']} quizzes, {counts['exercise']} exercises, {counts['project']} projects"
     )
-    return errors
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("courses_root", type=Path)
+    parser.add_argument(
+        "--ready",
+        action="append",
+        default=[],
+        metavar="COURSE_ID",
+        help="Release-ready course that must pass validation. Repeatable.",
+    )
+    parser.add_argument(
+        "--audit-all",
+        action="store_true",
+        help="Audit all other complete folder packages and report migration debt without failing CI.",
+    )
+    return parser.parse_args()
 
 
 def main() -> int:
-    if len(sys.argv) != 2:
-        print("usage: validate_maincourse_snapshot.py <MainCourse/courses>", file=sys.stderr)
-        return 2
-    courses_root = Path(sys.argv[1])
+    args = parse_args()
+    courses_root: Path = args.courses_root
     if not courses_root.is_dir():
         print(f"courses root not found: {courses_root}", file=sys.stderr)
         return 2
 
-    candidates = sorted(
-        path for path in courses_root.glob("*/course")
-        if (path / "levels.json").is_file()
-        and (path / "chapters.json").is_file()
-        and (path / "lessons").is_dir()
-    )
-    if not candidates:
+    courses = discover_courses(courses_root)
+    if not courses:
         print("no complete folder-based course packages found", file=sys.stderr)
         return 1
 
-    all_errors: list[str] = []
-    for course_root in candidates:
-        try:
-            errors = validate_course(course_root)
-        except (OSError, json.JSONDecodeError, ValueError) as error:
-            errors = [f"package read error: {error}"]
-        all_errors.extend(f"{course_root}: {error}" for error in errors)
+    ready_ids = list(dict.fromkeys(args.ready))
+    if not ready_ids:
+        print("at least one --ready course must be supplied", file=sys.stderr)
+        return 2
 
-    if all_errors:
-        print("\nMainCourse package validation failed:", file=sys.stderr)
-        for error in all_errors:
+    hard_errors: list[str] = []
+    for course_id in ready_ids:
+        course_root = courses.get(course_id)
+        if course_root is None:
+            hard_errors.append(f"release-ready course '{course_id}' was not found as a complete folder package")
+            continue
+        try:
+            errors, counts = validate_course(course_root)
+        except (OSError, json.JSONDecodeError, ValueError) as error:
+            errors, counts = [f"package read error: {error}"], {
+                "level": 0, "chapter": 0, "lesson": 0, "quiz": 0, "exercise": 0, "project": 0
+            }
+        print_summary(course_id, counts, "READY")
+        hard_errors.extend(f"{course_id}: {error}" for error in errors)
+
+    audit_issue_count = 0
+    if args.audit_all:
+        print("\nMigration audit (non-blocking):")
+        for course_id, course_root in courses.items():
+            if course_id in ready_ids:
+                continue
+            try:
+                errors, counts = validate_course(course_root)
+            except (OSError, json.JSONDecodeError, ValueError) as error:
+                errors, counts = [f"package read error: {error}"], {
+                    "level": 0, "chapter": 0, "lesson": 0, "quiz": 0, "exercise": 0, "project": 0
+                }
+            print_summary(course_id, counts, "AUDIT")
+            if errors:
+                audit_issue_count += len(errors)
+                preview = errors[:8]
+                for error in preview:
+                    print(f"::warning title=MainCourse migration debt ({course_id})::{error}")
+                if len(errors) > len(preview):
+                    print(
+                        f"::warning title=MainCourse migration debt ({course_id})::"
+                        f"{len(errors) - len(preview)} additional issue(s) omitted from annotation output; "
+                        "see maincourse-validation.log"
+                    )
+                print(f"  {course_id}: {len(errors)} migration issue(s)")
+
+    if hard_errors:
+        print("\nRelease-ready MainCourse validation failed:", file=sys.stderr)
+        for error in hard_errors:
             print(f"- {error}", file=sys.stderr)
         return 1
 
-    print(f"All {len(candidates)} complete folder-based course package(s) passed validation.")
+    print(
+        f"\nRelease-ready validation passed for {len(ready_ids)} course(s): {', '.join(ready_ids)}. "
+        f"Non-blocking migration audit found {audit_issue_count} issue(s)."
+    )
     return 0
 
 
