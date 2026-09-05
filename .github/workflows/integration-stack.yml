@@ -64,33 +64,33 @@ jobs:
 
       - name: Test Core contracts
         working-directory: AS-Academy-Core
-        run: ./gradlew :course:test :engine:test --stacktrace
+        run: ./gradlew :course:test :engine:test :core:testDebugUnitTest --stacktrace
 
-      - name: Validate canonical Course packages and report legacy packages
+      - name: Validate migrated Course packages and report pending migrations
         shell: bash
         run: |
           set -euo pipefail
           canonical_count=0
-          legacy_count=0
+          migration_count=0
 
           while IFS= read -r course_dir; do
             manifest="$course_dir/manifest.json"
             [[ -f "$manifest" ]] || continue
             relative_dir="${course_dir#AS-Academy-MainCourse/}"
 
-            if grep -q '"courseId"' "$manifest" && grep -q '"contentSchemaVersion"' "$manifest"; then
+            if [[ -f "$course_dir/.core-contract-v1" ]]; then
               canonical_count=$((canonical_count + 1))
               echo "Validating canonical $relative_dir"
               ./AS-Academy-Core/gradlew -p AS-Academy-Core :tools:run \
                 --args="validate ../AS-Academy-MainCourse/$relative_dir" --stacktrace
             else
-              legacy_count=$((legacy_count + 1))
-              echo "::warning file=$manifest::Legacy package pending Core-contract migration: $relative_dir"
+              migration_count=$((migration_count + 1))
+              echo "::warning file=$manifest::Package pending full Core-contract migration: $relative_dir"
             fi
           done < <(find AS-Academy-MainCourse/courses -mindepth 2 -maxdepth 2 -type d -name course | sort)
 
           test "$canonical_count" -gt 0
-          echo "Canonical packages: $canonical_count; legacy packages: $legacy_count"
+          echo "Canonical packages: $canonical_count; pending migrations: $migration_count"
 
       - name: Test MainUi against matching Core
         run: ./AS-Academy-Core/gradlew -p AS-Academy-MainUi :main-ui:testDebugUnitTest --stacktrace
