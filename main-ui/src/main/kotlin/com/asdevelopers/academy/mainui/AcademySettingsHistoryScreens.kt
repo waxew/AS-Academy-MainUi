@@ -1,5 +1,8 @@
 package com.asdevelopers.academy.mainui
 
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -15,6 +18,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
@@ -34,6 +38,35 @@ fun AcademySettingsScreen(
     val settings by runtime.preferencesRepository.settings.collectAsState(
         initial = com.asdevelopers.academy.core.settings.AcademySettings()
     )
+
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        scope.launch {
+            runtime.preferencesRepository.setNotificationsEnabled(granted)
+            if (granted) {
+                runtime.studyReminderScheduler.scheduleEvery(
+                    days = 1,
+                    title = "AS Academy",
+                    message = "زمان ادامه مسیر یادگیری است."
+                )
+            } else {
+                runtime.studyReminderScheduler.cancel()
+            }
+        }
+    }
+
+    LaunchedEffect(settings.notificationsEnabled) {
+        if (!settings.notificationsEnabled) {
+            runtime.studyReminderScheduler.cancel()
+        } else if (runtime.studyReminderScheduler.canPostNotifications()) {
+            runtime.studyReminderScheduler.scheduleEvery(
+                days = 1,
+                title = "AS Academy",
+                message = "زمان ادامه مسیر یادگیری است."
+            )
+        }
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(16.dp),
@@ -74,13 +107,35 @@ fun AcademySettingsScreen(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Column(Modifier.weight(1f)) {
-                        Text("اعلان‌ها", style = MaterialTheme.typography.titleMedium)
-                        Text(if (settings.notificationsEnabled) "فعال" else "غیرفعال")
+                        Text("یادآور مطالعه", style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            when {
+                                !settings.notificationsEnabled -> "غیرفعال"
+                                runtime.studyReminderScheduler.canPostNotifications() -> "فعال • روزانه"
+                                else -> "برای فعال‌سازی، مجوز اعلان لازم است"
+                            }
+                        )
                     }
                     Switch(
-                        checked = settings.notificationsEnabled,
+                        checked = settings.notificationsEnabled && runtime.studyReminderScheduler.canPostNotifications(),
                         onCheckedChange = { enabled ->
-                            scope.launch { runtime.preferencesRepository.setNotificationsEnabled(enabled) }
+                            if (!enabled) {
+                                scope.launch {
+                                    runtime.studyReminderScheduler.cancel()
+                                    runtime.preferencesRepository.setNotificationsEnabled(false)
+                                }
+                            } else if (runtime.studyReminderScheduler.canPostNotifications()) {
+                                scope.launch {
+                                    runtime.studyReminderScheduler.scheduleEvery(
+                                        days = 1,
+                                        title = "AS Academy",
+                                        message = "زمان ادامه مسیر یادگیری است."
+                                    )
+                                    runtime.preferencesRepository.setNotificationsEnabled(true)
+                                }
+                            } else {
+                                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                            }
                         }
                     )
                 }
