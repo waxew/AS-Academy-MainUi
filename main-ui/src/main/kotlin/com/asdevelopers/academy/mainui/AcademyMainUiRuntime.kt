@@ -2,6 +2,7 @@ package com.asdevelopers.academy.mainui
 
 import android.content.Context
 import com.asdevelopers.academy.core.database.AcademyDatabase
+import com.asdevelopers.academy.core.notification.StudyReminderScheduler
 import com.asdevelopers.academy.core.repository.AchievementRepository
 import com.asdevelopers.academy.core.repository.BookmarkRepository
 import com.asdevelopers.academy.core.repository.ExerciseDraftRepository
@@ -30,7 +31,8 @@ class AcademyMainUiRuntime private constructor(
     val exerciseDraftRepository: ExerciseDraftRepository,
     val projectProgressRepository: ProjectProgressRepository,
     val learningCompletionRepository: LearningCompletionRepository,
-    val preferencesRepository: AcademyPreferencesRepository
+    val preferencesRepository: AcademyPreferencesRepository,
+    val studyReminderScheduler: StudyReminderScheduler
 ) {
     companion object {
         fun create(context: Context, databaseName: String = "as_academy.db"): AcademyMainUiRuntime {
@@ -47,7 +49,8 @@ class AcademyMainUiRuntime private constructor(
                 exerciseDraftRepository = ExerciseDraftRepository(database.exerciseDraftDao()),
                 projectProgressRepository = ProjectProgressRepository(database.projectProgressDao()),
                 learningCompletionRepository = LearningCompletionRepository(database.learningCompletionDao()),
-                preferencesRepository = AcademyPreferencesRepository(appContext)
+                preferencesRepository = AcademyPreferencesRepository(appContext),
+                studyReminderScheduler = StudyReminderScheduler(appContext)
             )
         }
     }
