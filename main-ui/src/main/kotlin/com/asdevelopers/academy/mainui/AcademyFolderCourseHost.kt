@@ -31,8 +31,6 @@ import com.asdevelopers.academy.core.progress.LessonProgress
 import com.asdevelopers.academy.core.progress.LessonStatus
 import com.asdevelopers.academy.core.progress.ProgressEngine
 import com.asdevelopers.academy.core.search.SearchDocument
-import com.asdevelopers.academy.core.ui.screens.AcademyExerciseScreen
-import com.asdevelopers.academy.core.ui.screens.AcademyProjectScreen
 import com.asdevelopers.academy.course.model.Chapter
 import com.asdevelopers.academy.course.model.CourseLevel
 import com.asdevelopers.academy.course.model.CourseLevelType
@@ -276,12 +274,24 @@ private fun FolderCourseRouter(
         is CourseRoute.ExerciseDetail -> {
             val exercise = data.extras.exercises.firstOrNull { it.id == route.exerciseId }
             if (exercise == null) AcademyMainUiMessage("تمرین پیدا نشد")
-            else DetailContainer("بازگشت", onBack) { AcademyExerciseScreen(exercise = exercise) }
+            else DetailContainer("بازگشت", onBack) {
+                AcademyTrackedExerciseScreen(
+                    courseId = courseId,
+                    exercise = exercise,
+                    runtime = runtime
+                )
+            }
         }
         is CourseRoute.ProjectDetail -> {
             val project = data.extras.projects.firstOrNull { it.id == route.projectId }
             if (project == null) AcademyMainUiMessage("پروژه پیدا نشد")
-            else DetailContainer("بازگشت", onBack) { AcademyProjectScreen(project = project) }
+            else DetailContainer("بازگشت", onBack) {
+                AcademyTrackedProjectScreen(
+                    courseId = courseId,
+                    project = project,
+                    runtime = runtime
+                )
+            }
         }
     }
 }
