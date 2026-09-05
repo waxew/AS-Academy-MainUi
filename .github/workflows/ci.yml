@@ -27,7 +27,7 @@ jobs:
         uses: actions/checkout@v5
         with:
           repository: waxew/AS-Academy-Core
-          ref: a726e18c7e8eb4193567fc72b1f461ae9e88d4be
+          ref: 93fc56c635ed970ae1b26807b6eb93892398d2d3
           path: AS-Academy-Core
 
       - name: Checkout AS Academy MainCourse
