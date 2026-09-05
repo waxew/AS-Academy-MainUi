@@ -1,6 +1,8 @@
 package com.asdevelopers.academy.mainui
 
+import android.content.Intent
 import android.content.res.AssetManager
+import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -59,6 +61,8 @@ private sealed interface CourseRoute {
     data object Achievements : CourseRoute
     data object Progress : CourseRoute
     data object Settings : CourseRoute
+    data object Profile : CourseRoute
+    data object AppInfo : CourseRoute
     data class Chapters(val levelId: String) : CourseRoute
     data class Lessons(val chapterId: String) : CourseRoute
     data class LessonDetail(val lessonId: String) : CourseRoute
@@ -77,6 +81,8 @@ private fun CourseRoute.encode(): String = when (this) {
     CourseRoute.Achievements -> "achievements"
     CourseRoute.Progress -> "progress"
     CourseRoute.Settings -> "settings"
+    CourseRoute.Profile -> "profile"
+    CourseRoute.AppInfo -> "app-info"
     is CourseRoute.Chapters -> "chapters:$levelId"
     is CourseRoute.Lessons -> "lessons:$chapterId"
     is CourseRoute.LessonDetail -> "lesson:$lessonId"
@@ -98,6 +104,8 @@ private fun decodeRoute(value: String): CourseRoute {
         "achievements" -> CourseRoute.Achievements
         "progress" -> CourseRoute.Progress
         "settings" -> CourseRoute.Settings
+        "profile" -> CourseRoute.Profile
+        "app-info" -> CourseRoute.AppInfo
         "chapters" -> CourseRoute.Chapters(id)
         "lessons" -> CourseRoute.Lessons(id)
         "lesson" -> CourseRoute.LessonDetail(id)
@@ -120,7 +128,8 @@ fun AcademyFolderCourseHost(
     title: String,
     branding: com.asdevelopers.academy.course.model.CourseBranding,
     darkTheme: Boolean = false,
-    runtime: AcademyMainUiRuntime? = null
+    runtime: AcademyMainUiRuntime? = null,
+    appInfo: AcademyAppInfo = AcademyAppInfo()
 ) {
     val context = LocalContext.current
     val resolvedRuntime = runtime ?: remember(context) { AcademyMainUiRuntime.create(context) }
@@ -144,6 +153,7 @@ fun AcademyFolderCourseHost(
         data = null
         error = null
         routeStack = listOf(CourseRoute.Home.encode())
+        resolvedRuntime.preferencesRepository.setLastCourse(courseId)
         val courseData = try {
             loadFolderCourse(context.assets, courseId)
         } catch (throwable: Throwable) {
@@ -159,19 +169,20 @@ fun AcademyFolderCourseHost(
         }
     }
 
-    AcademyMainUi(
-        config = AcademyMainUiConfig(
-            courseId = courseId,
-            branding = branding,
-            darkTheme = darkTheme
-        )
-    ) {
+    val config = AcademyMainUiConfig(
+        courseId = courseId,
+        branding = branding,
+        darkTheme = darkTheme,
+        appInfo = appInfo
+    )
+    AcademyPreferenceAwareMainUi(config = config, runtime = resolvedRuntime) {
         when {
             error != null -> AcademyMainUiMessage("خطا در بارگذاری محتوای دوره: ${error.orEmpty()}")
             data == null -> AcademyMainUiLoading()
             else -> FolderCourseRouter(
                 courseId = courseId,
                 title = title,
+                appInfo = appInfo,
                 data = requireNotNull(data),
                 progress = progress,
                 runtime = resolvedRuntime,
@@ -187,6 +198,7 @@ fun AcademyFolderCourseHost(
 private fun FolderCourseRouter(
     courseId: String,
     title: String,
+    appInfo: AcademyAppInfo,
     data: FolderCourseData,
     progress: List<LessonProgress>,
     runtime: AcademyMainUiRuntime,
@@ -194,6 +206,7 @@ private fun FolderCourseRouter(
     onNavigate: (CourseRoute) -> Unit,
     onBack: () -> Unit
 ) {
+    val context = LocalContext.current
     when (route) {
         CourseRoute.Home -> CourseHome(title, data, progress, onNavigate)
         CourseRoute.Catalog -> Catalog(data, onNavigate, onBack)
@@ -228,6 +241,31 @@ private fun FolderCourseRouter(
         )
         CourseRoute.Settings -> AcademySettingsScreen(
             runtime = runtime,
+            onBack = onBack
+        )
+        CourseRoute.Profile -> AcademyProfileScreen(
+            runtime = runtime,
+            onBack = onBack
+        )
+        CourseRoute.AppInfo -> AcademyAppInfoScreen(
+            appTitle = title,
+            appInfo = appInfo,
+            onShare = appInfo.shareText?.takeIf { it.isNotBlank() }?.let { shareText ->
+                {
+                    val intent = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_TEXT, shareText)
+                    }
+                    runCatching { context.startActivity(Intent.createChooser(intent, null)) }
+                }
+            },
+            onOpenUpdate = appInfo.updateUri?.takeIf { it.isNotBlank() }?.let { updateUri ->
+                {
+                    runCatching {
+                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(updateUri)))
+                    }
+                }
+            },
             onBack = onBack
         )
         is CourseRoute.Chapters -> ChapterList(data, route.levelId, onNavigate, onBack)
@@ -354,8 +392,18 @@ private fun CourseHome(
             }
         }
         item {
+            Button(onClick = { onNavigate(CourseRoute.Profile) }, modifier = Modifier.fillMaxWidth()) {
+                Text("پروفایل")
+            }
+        }
+        item {
             Button(onClick = { onNavigate(CourseRoute.Settings) }, modifier = Modifier.fillMaxWidth()) {
                 Text("تنظیمات")
+            }
+        }
+        item {
+            Button(onClick = { onNavigate(CourseRoute.AppInfo) }, modifier = Modifier.fillMaxWidth()) {
+                Text("درباره و اشتراک‌گذاری")
             }
         }
         item {
