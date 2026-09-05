@@ -28,7 +28,7 @@ dependencies {
     if (hostCore != null) {
         compileOnly(hostCore)
     } else {
-        compileOnly("com.asdevelopers.academy:core:1.4.0")
+        compileOnly("com.asdevelopers.academy:core:1.5.0")
     }
 
     implementation("androidx.core:core-ktx:1.17.0")
