@@ -3,7 +3,6 @@ package com.asdevelopers.academy.mainui
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.weight
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -38,7 +37,7 @@ fun AcademyTrackedQuizScreen(
 
         AcademyQuizScreen(
             quiz = quiz,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.fillMaxSize(),
             onCompleted = { score ->
                 scope.launch {
                     runtime.quizHistoryRepository.record(
