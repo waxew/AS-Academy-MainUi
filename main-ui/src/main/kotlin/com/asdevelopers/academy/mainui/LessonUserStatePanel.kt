@@ -34,7 +34,7 @@ internal fun LessonUserStatePanel(
     }
     val lessonNote = notes
         .filter { it.blockId == null }
-        .maxByOrNull { it.updatedAt }
+        .maxByOrNull { it.updatedAtEpochMillis }
     var noteText by remember(lessonId) { mutableStateOf("") }
 
     LaunchedEffect(lessonNote?.id) {
