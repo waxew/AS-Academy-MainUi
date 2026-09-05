@@ -11,8 +11,6 @@ import com.asdevelopers.academy.core.exercise.ExerciseDraft
 import com.asdevelopers.academy.core.progress.LearningCompletion
 import com.asdevelopers.academy.core.progress.LearningTargetType
 import com.asdevelopers.academy.core.project.LearningProject
-import com.asdevelopers.academy.core.ui.screens.AcademyExerciseScreen
-import com.asdevelopers.academy.core.ui.screens.AcademyProjectScreen
 import kotlinx.coroutines.launch
 
 /** MainUi host that restores and autosaves an exercise answer through Core repositories. */
@@ -28,7 +26,7 @@ fun AcademyTrackedExerciseScreen(
         .observe(courseId, exercise.id)
         .collectAsState(initial = null)
 
-    AcademyExerciseScreen(
+    AcademyExerciseRenderer(
         exercise = exercise,
         modifier = modifier,
         initialAnswer = savedDraft?.answer.orEmpty(),
@@ -85,7 +83,7 @@ fun AcademyTrackedProjectScreen(
         .observe(courseId, project.id)
         .collectAsState(initial = null)
 
-    AcademyProjectScreen(
+    AcademyProjectRenderer(
         project = normalizedProject,
         progress = savedProgress,
         modifier = modifier,
