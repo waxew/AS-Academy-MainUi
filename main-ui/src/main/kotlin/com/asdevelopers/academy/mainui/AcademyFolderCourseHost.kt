@@ -33,7 +33,6 @@ import com.asdevelopers.academy.core.progress.ProgressEngine
 import com.asdevelopers.academy.core.search.SearchDocument
 import com.asdevelopers.academy.core.ui.screens.AcademyExerciseScreen
 import com.asdevelopers.academy.core.ui.screens.AcademyProjectScreen
-import com.asdevelopers.academy.core.ui.screens.AcademyQuizScreen
 import com.asdevelopers.academy.course.model.Chapter
 import com.asdevelopers.academy.course.model.CourseLevel
 import com.asdevelopers.academy.course.model.CourseLevelType
@@ -60,11 +59,13 @@ private sealed interface CourseRoute {
     data object Search : CourseRoute
     data object Bookmarks : CourseRoute
     data object Achievements : CourseRoute
+    data object Settings : CourseRoute
     data class Chapters(val levelId: String) : CourseRoute
     data class Lessons(val chapterId: String) : CourseRoute
     data class LessonDetail(val lessonId: String) : CourseRoute
     data class LessonNotes(val lessonId: String) : CourseRoute
     data class QuizDetail(val quizId: String) : CourseRoute
+    data class QuizHistory(val quizId: String) : CourseRoute
     data class ExerciseDetail(val exerciseId: String) : CourseRoute
     data class ProjectDetail(val projectId: String) : CourseRoute
 }
@@ -75,11 +76,13 @@ private fun CourseRoute.encode(): String = when (this) {
     CourseRoute.Search -> "search"
     CourseRoute.Bookmarks -> "bookmarks"
     CourseRoute.Achievements -> "achievements"
+    CourseRoute.Settings -> "settings"
     is CourseRoute.Chapters -> "chapters:$levelId"
     is CourseRoute.Lessons -> "lessons:$chapterId"
     is CourseRoute.LessonDetail -> "lesson:$lessonId"
     is CourseRoute.LessonNotes -> "notes:$lessonId"
     is CourseRoute.QuizDetail -> "quiz:$quizId"
+    is CourseRoute.QuizHistory -> "quiz-history:$quizId"
     is CourseRoute.ExerciseDetail -> "exercise:$exerciseId"
     is CourseRoute.ProjectDetail -> "project:$projectId"
 }
@@ -93,11 +96,13 @@ private fun decodeRoute(value: String): CourseRoute {
         "search" -> CourseRoute.Search
         "bookmarks" -> CourseRoute.Bookmarks
         "achievements" -> CourseRoute.Achievements
+        "settings" -> CourseRoute.Settings
         "chapters" -> CourseRoute.Chapters(id)
         "lessons" -> CourseRoute.Lessons(id)
         "lesson" -> CourseRoute.LessonDetail(id)
         "notes" -> CourseRoute.LessonNotes(id)
         "quiz" -> CourseRoute.QuizDetail(id)
+        "quiz-history" -> CourseRoute.QuizHistory(id)
         "exercise" -> CourseRoute.ExerciseDetail(id)
         "project" -> CourseRoute.ProjectDetail(id)
         else -> CourseRoute.Home
@@ -213,6 +218,10 @@ private fun FolderCourseRouter(
             runtime = runtime,
             onBack = onBack
         )
+        CourseRoute.Settings -> AcademySettingsScreen(
+            runtime = runtime,
+            onBack = onBack
+        )
         is CourseRoute.Chapters -> ChapterList(data, route.levelId, onNavigate, onBack)
         is CourseRoute.Lessons -> LessonList(data, progress, route.chapterId, onNavigate, onBack)
         is CourseRoute.LessonDetail -> {
@@ -234,7 +243,25 @@ private fun FolderCourseRouter(
         is CourseRoute.QuizDetail -> {
             val quiz = data.extras.quizzes.firstOrNull { it.id == route.quizId }
             if (quiz == null) AcademyMainUiMessage("آزمون پیدا نشد")
-            else DetailContainer("بازگشت", onBack) { AcademyQuizScreen(quiz = quiz) }
+            else DetailContainer("بازگشت", onBack) {
+                AcademyTrackedQuizScreen(
+                    courseId = courseId,
+                    quiz = quiz,
+                    runtime = runtime,
+                    onOpenHistory = { onNavigate(CourseRoute.QuizHistory(quiz.id)) }
+                )
+            }
+        }
+        is CourseRoute.QuizHistory -> {
+            val quiz = data.extras.quizzes.firstOrNull { it.id == route.quizId }
+            if (quiz == null) AcademyMainUiMessage("آزمون پیدا نشد")
+            else AcademyQuizHistoryScreen(
+                courseId = courseId,
+                quizId = quiz.id,
+                quizTitle = quiz.title,
+                runtime = runtime,
+                onBack = onBack
+            )
         }
         is CourseRoute.ExerciseDetail -> {
             val exercise = data.extras.exercises.firstOrNull { it.id == route.exerciseId }
@@ -299,6 +326,11 @@ private fun CourseHome(
         item {
             Button(onClick = { onNavigate(CourseRoute.Achievements) }, modifier = Modifier.fillMaxWidth()) {
                 Text("دستاوردها")
+            }
+        }
+        item {
+            Button(onClick = { onNavigate(CourseRoute.Settings) }, modifier = Modifier.fillMaxWidth()) {
+                Text("تنظیمات")
             }
         }
         item {
