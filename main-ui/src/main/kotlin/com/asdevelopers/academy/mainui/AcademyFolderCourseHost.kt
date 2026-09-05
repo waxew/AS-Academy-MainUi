@@ -332,6 +332,13 @@ private fun LessonReader(
             Text("زمان تقریبی: ${lesson.estimatedMinutes} دقیقه")
             progress?.let { Text("پیشرفت این درس: ${it.progressPercent}٪") }
         }
+        item {
+            LessonUserStatePanel(
+                courseId = courseId,
+                lessonId = lesson.id,
+                runtime = runtime
+            )
+        }
         items(lesson.blocks, key = { it.id }) { block ->
             LessonBlockView(block = block, onNavigate = onNavigate)
         }
