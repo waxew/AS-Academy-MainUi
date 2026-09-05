@@ -1,0 +1,87 @@
+name: Academy three-repo integration
+
+on:
+  push:
+    branches: [integration/core-maincourse]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: academy-stack-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  stack:
+    name: Core + MainUi + MainCourse
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout MainUi integration branch
+        uses: actions/checkout@v5
+        with:
+          ref: integration/core-maincourse
+          path: AS-Academy-MainUi
+
+      - name: Checkout matching Core integration branch
+        uses: actions/checkout@v5
+        with:
+          repository: waxew/AS-Academy-Core
+          ref: integration/mainui-maincourse
+          path: AS-Academy-Core
+
+      - name: Checkout matching MainCourse integration branch
+        uses: actions/checkout@v5
+        with:
+          repository: waxew/AS-Academy-MainCourse
+          ref: integration/core-mainui
+          path: AS-Academy-MainCourse
+
+      - name: Bundle canonical MainCourse snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          asset_root="AS-Academy-MainUi/academy-viewer/src/main/assets/maincourse"
+          rm -rf "$asset_root"
+          mkdir -p "$asset_root"
+          cp -R AS-Academy-MainCourse/courses "$asset_root/courses"
+          git -C AS-Academy-MainCourse rev-parse HEAD > "$asset_root/snapshot-sha.txt"
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android API 36
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Set up Gradle cache
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Test Core contracts
+        working-directory: AS-Academy-Core
+        run: ./gradlew :course:test :engine:test --stacktrace
+
+      - name: Validate every canonical Course package
+        shell: bash
+        run: |
+          set -euo pipefail
+          found=0
+          while IFS= read -r course_dir; do
+            if [[ -f "$course_dir/manifest.json" ]]; then
+              found=1
+              echo "Validating $course_dir"
+              ./AS-Academy-Core/gradlew -p AS-Academy-Core :tools:run --args="validate ../AS-Academy-MainCourse/$course_dir" --stacktrace
+            fi
+          done < <(find AS-Academy-MainCourse/courses -mindepth 2 -maxdepth 2 -type d -name course -printf '%P\n' | sort)
+          test "$found" -eq 1
+
+      - name: Test MainUi against matching Core
+        run: ./AS-Academy-Core/gradlew -p AS-Academy-MainUi :main-ui:testDebugUnitTest --stacktrace
+
+      - name: Build and lint integrated Android viewer
+        run: ./AS-Academy-Core/gradlew -p AS-Academy-MainUi :main-ui:assembleDebug :academy-viewer:assembleDebug :main-ui:lintDebug :academy-viewer:lintDebug --stacktrace
