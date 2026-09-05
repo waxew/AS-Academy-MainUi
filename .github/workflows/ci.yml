@@ -46,12 +46,14 @@ jobs:
           git -C AS-Academy-MainCourse rev-parse HEAD > "$asset_root/snapshot-sha.txt"
           printf 'Bundled %s course folders\n' "$(find "$asset_root/courses" -mindepth 1 -maxdepth 1 -type d | wc -l)"
 
-      - name: Validate real MainCourse packages
+      - name: Validate release-ready MainCourse and audit migrations
         shell: bash
         run: |
           set -o pipefail
           python3 AS-Academy-MainUi/.github/scripts/validate_maincourse_snapshot.py \
-            AS-Academy-MainCourse/courses 2>&1 | tee maincourse-validation.log
+            AS-Academy-MainCourse/courses \
+            --ready basic \
+            --audit-all 2>&1 | tee maincourse-validation.log
 
       - name: Set up JDK 17
         uses: actions/setup-java@v5
