@@ -29,7 +29,7 @@ dependencies {
     // MainUi provides the shared AS Academy visual contract and theme.
     implementation(project(":main-ui"))
     // Core remains the single runtime/model source for the complete Academy family.
-    implementation("com.asdevelopers.academy:core:1.4.0")
+    implementation("com.asdevelopers.academy:core:1.5.0")
 
     implementation("androidx.core:core-ktx:1.17.0")
     implementation("androidx.activity:activity-compose:1.12.2")
