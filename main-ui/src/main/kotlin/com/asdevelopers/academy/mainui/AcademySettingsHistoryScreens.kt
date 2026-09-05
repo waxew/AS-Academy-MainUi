@@ -25,7 +25,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.asdevelopers.academy.core.database.QuizResultEntity
+import com.asdevelopers.academy.core.model.AcademyQuizAttempt
 import com.asdevelopers.academy.core.settings.AcademyThemeMode
 import kotlinx.coroutines.launch
 
@@ -170,7 +170,7 @@ fun AcademyQuizHistoryScreen(
 ) {
     val attempts by runtime.quizHistoryRepository.observeQuiz(courseId, quizId)
         .collectAsState(initial = emptyList())
-    val sorted = attempts.sortedByDescending(QuizResultEntity::completedAt)
+    val sorted = attempts.sortedByDescending(AcademyQuizAttempt::completedAtEpochMillis)
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(16.dp),
@@ -193,13 +193,13 @@ fun AcademyQuizHistoryScreen(
 }
 
 @Composable
-private fun QuizAttemptCard(attempt: QuizResultEntity) {
+private fun QuizAttemptCard(attempt: AcademyQuizAttempt) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("امتیاز: ${attempt.scorePercent}٪", style = MaterialTheme.typography.titleMedium)
             Text("صحیح: ${attempt.correctCount} • غلط: ${attempt.wrongCount}")
-            if (attempt.weakTags.isNotBlank()) {
-                Text("موضوعات نیازمند مرور: ${attempt.weakTags.replace('|', '،')}")
+            if (attempt.weakTags.isNotEmpty()) {
+                Text("موضوعات نیازمند مرور: ${attempt.weakTags.joinToString("،")}")
             }
         }
     }
