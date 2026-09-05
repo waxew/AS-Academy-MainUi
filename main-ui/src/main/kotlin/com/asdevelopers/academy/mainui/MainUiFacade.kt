@@ -18,39 +18,24 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.asdevelopers.academy.core.content.CourseBundle
 import com.asdevelopers.academy.core.settings.AcademyProfile
-import com.asdevelopers.academy.core.ui.components.AcademyAppShell
-import com.asdevelopers.academy.core.ui.components.AcademyDrawerItem
-import com.asdevelopers.academy.core.ui.content.LessonRenderer
-import com.asdevelopers.academy.core.ui.screens.AcademyLearningCatalogScreen
-import com.asdevelopers.academy.core.ui.theme.AcademyTheme
 import com.asdevelopers.academy.course.model.CourseBranding
 import com.asdevelopers.academy.course.model.Lesson
 
-/**
- * Transitional public MainUi facade.
- *
- * Course applications import shared visual primitives from this package instead of reaching into Core UI.
- * Core remains the engine/runtime underneath MainUi while older Core visual APIs stay available during migration.
- */
+/** MainUi is the authoritative presentation layer; Core supplies only runtime/data APIs. */
 @Composable
 fun AcademyMainUiTheme(
     branding: CourseBranding,
     darkTheme: Boolean,
     content: @Composable () -> Unit
 ) {
-    AcademyTheme(
-        branding = branding,
-        darkTheme = darkTheme,
-        content = content
-    )
+    FoundationAcademyTheme(branding = branding, darkTheme = darkTheme, content = content)
 }
 
-/** MainUi owns the common app shell while the Course host only supplies configuration and actions. */
 @Composable
 fun AcademyMainUiShell(
     title: String,
     profile: AcademyProfile,
-    courseItems: List<AcademyDrawerItem>,
+    courseItems: List<AcademyMainUiDrawerItem>,
     onProfileImageClick: () -> Unit,
     onSettingsClick: () -> Unit,
     onShareClick: () -> Unit,
@@ -58,7 +43,9 @@ fun AcademyMainUiShell(
     contentIsRtl: Boolean = true,
     content: @Composable (PaddingValues) -> Unit
 ) {
-    AcademyAppShell(
+    @Suppress("UNUSED_VARIABLE")
+    val rtl = contentIsRtl
+    FoundationAcademyShell(
         title = title,
         profile = profile,
         courseItems = courseItems,
@@ -66,15 +53,10 @@ fun AcademyMainUiShell(
         onSettingsClick = onSettingsClick,
         onShareClick = onShareClick,
         onAboutClick = onAboutClick,
-        contentIsRtl = contentIsRtl,
         content = content
     )
 }
 
-/**
- * Data-driven shared home screen. No course title, lesson ID or curriculum text is hard-coded here.
- * The same screen can render Basic, Kotlin, Python and future Course Packages.
- */
 @Composable
 fun AcademyCourseHomeScreen(
     bundle: CourseBundle,
@@ -86,69 +68,29 @@ fun AcademyCourseHomeScreen(
     modifier: Modifier = Modifier
 ) {
     LazyColumn(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(horizontal = 20.dp),
+        modifier = modifier.fillMaxSize().padding(horizontal = 20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 20.dp, bottom = 8.dp),
+                modifier = Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text(
-                    text = bundle.manifest.titleFa,
-                    style = MaterialTheme.typography.headlineMedium
-                )
-                Text(
-                    text = "${bundle.levels.size} سطح • ${bundle.chapters.size} فصل • ${bundle.lessons.size} درس"
-                )
-                onOpenPlacement?.let { action ->
-                    Button(onClick = action, modifier = Modifier.fillMaxWidth()) {
-                        Text("آزمون تعیین سطح")
-                    }
-                }
-                onOpenLearningCatalog?.let { action ->
-                    Button(onClick = action, modifier = Modifier.fillMaxWidth()) {
-                        Text("تمرین، آزمون و پروژه")
-                    }
-                }
-                onOpenWeakReview?.let { action ->
-                    Button(onClick = action, modifier = Modifier.fillMaxWidth()) {
-                        Text("مرور نقاط ضعف")
-                    }
-                }
-                onOpenFlashcards?.let { action ->
-                    Button(onClick = action, modifier = Modifier.fillMaxWidth()) {
-                        Text("مرور فلش‌کارت")
-                    }
-                }
+                Text(bundle.manifest.titleFa, style = MaterialTheme.typography.headlineMedium)
+                Text("${bundle.levels.size} سطح • ${bundle.chapters.size} فصل • ${bundle.lessons.size} درس")
+                onOpenPlacement?.let { action -> Button(onClick = action, modifier = Modifier.fillMaxWidth()) { Text("آزمون تعیین سطح") } }
+                onOpenLearningCatalog?.let { action -> Button(onClick = action, modifier = Modifier.fillMaxWidth()) { Text("تمرین، آزمون و پروژه") } }
+                onOpenWeakReview?.let { action -> Button(onClick = action, modifier = Modifier.fillMaxWidth()) { Text("مرور نقاط ضعف") } }
+                onOpenFlashcards?.let { action -> Button(onClick = action, modifier = Modifier.fillMaxWidth()) { Text("مرور فلش‌کارت") } }
             }
         }
-
-        items(
-            items = bundle.lessons,
-            key = { lesson -> lesson.id }
-        ) { lesson ->
-            Button(
-                onClick = { onOpenLesson(lesson.id) },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(lesson.title)
-            }
+        items(bundle.lessons, key = { it.id }) { lesson ->
+            Button(onClick = { onOpenLesson(lesson.id) }, modifier = Modifier.fillMaxWidth()) { Text(lesson.title) }
         }
-
-        item {
-            Column(modifier = Modifier.padding(bottom = 24.dp)) {}
-        }
+        item { Column(modifier = Modifier.padding(bottom = 24.dp)) {} }
     }
 }
 
-/**
- * Shared Lesson Reader. Course apps only select a Lesson ID; all block rendering remains centralized.
- */
 @Composable
 fun AcademyLessonReaderScreen(
     lesson: Lesson,
@@ -157,18 +99,15 @@ fun AcademyLessonReaderScreen(
     onProjectClick: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    LessonRenderer(
+    FoundationLessonRenderer(
         lesson = lesson,
-        modifier = modifier
-            .fillMaxSize()
-            .padding(20.dp),
+        modifier = modifier.fillMaxSize().padding(20.dp),
         onExerciseClick = onExerciseClick,
         onQuizClick = onQuizClick,
         onProjectClick = onProjectClick
     )
 }
 
-/** Shared searchable/filterable activity catalog backed by Core models and navigation callbacks. */
 @Composable
 fun AcademyCourseLearningCatalog(
     bundle: CourseBundle,
@@ -177,41 +116,37 @@ fun AcademyCourseLearningCatalog(
     onProjectClick: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    AcademyLearningCatalogScreen(
-        quizzes = bundle.quizzes,
-        exercises = bundle.exercises,
-        projects = bundle.projects,
-        modifier = modifier,
-        onQuizClick = onQuizClick,
-        onExerciseClick = onExerciseClick,
-        onProjectClick = onProjectClick
-    )
+    LazyColumn(
+        modifier = modifier.fillMaxSize().padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        item { Text("آزمون‌ها", style = MaterialTheme.typography.titleLarge) }
+        items(bundle.quizzes, key = { it.id }) { quiz ->
+            Button(onClick = { onQuizClick(quiz.id) }, modifier = Modifier.fillMaxWidth()) { Text(quiz.title) }
+        }
+        item { Text("تمرین‌ها", style = MaterialTheme.typography.titleLarge) }
+        items(bundle.exercises, key = { it.id }) { exercise ->
+            Button(onClick = { onExerciseClick(exercise.id) }, modifier = Modifier.fillMaxWidth()) { Text(exercise.title) }
+        }
+        item { Text("پروژه‌ها", style = MaterialTheme.typography.titleLarge) }
+        items(bundle.projects, key = { it.id }) { project ->
+            Button(onClick = { onProjectClick(project.id) }, modifier = Modifier.fillMaxWidth()) { Text(project.title) }
+        }
+    }
 }
 
-/** Shared full-screen loading state used while a Course Package is being loaded or validated. */
 @Composable
 fun AcademyMainUiLoading(modifier: Modifier = Modifier) {
     Column(
         modifier = modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
-    ) {
-        CircularProgressIndicator()
-    }
+    ) { CircularProgressIndicator() }
 }
 
-/** Shared error/empty state keeps Course hosts free of one-off presentation code. */
 @Composable
-fun AcademyMainUiMessage(
-    message: String,
-    modifier: Modifier = Modifier
-) {
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        verticalArrangement = Arrangement.Center
-    ) {
+fun AcademyMainUiMessage(message: String, modifier: Modifier = Modifier) {
+    Column(modifier = modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center) {
         Text(message)
     }
 }
