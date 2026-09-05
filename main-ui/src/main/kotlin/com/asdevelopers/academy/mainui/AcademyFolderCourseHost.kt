@@ -59,6 +59,7 @@ private sealed interface CourseRoute {
     data object Search : CourseRoute
     data object Bookmarks : CourseRoute
     data object Achievements : CourseRoute
+    data object Progress : CourseRoute
     data object Settings : CourseRoute
     data class Chapters(val levelId: String) : CourseRoute
     data class Lessons(val chapterId: String) : CourseRoute
@@ -76,6 +77,7 @@ private fun CourseRoute.encode(): String = when (this) {
     CourseRoute.Search -> "search"
     CourseRoute.Bookmarks -> "bookmarks"
     CourseRoute.Achievements -> "achievements"
+    CourseRoute.Progress -> "progress"
     CourseRoute.Settings -> "settings"
     is CourseRoute.Chapters -> "chapters:$levelId"
     is CourseRoute.Lessons -> "lessons:$chapterId"
@@ -96,6 +98,7 @@ private fun decodeRoute(value: String): CourseRoute {
         "search" -> CourseRoute.Search
         "bookmarks" -> CourseRoute.Bookmarks
         "achievements" -> CourseRoute.Achievements
+        "progress" -> CourseRoute.Progress
         "settings" -> CourseRoute.Settings
         "chapters" -> CourseRoute.Chapters(id)
         "lessons" -> CourseRoute.Lessons(id)
@@ -218,6 +221,13 @@ private fun FolderCourseRouter(
             runtime = runtime,
             onBack = onBack
         )
+        CourseRoute.Progress -> AcademyCourseProgressScreen(
+            lessonIds = data.lessons.sortedBy { it.order }.map { it.id },
+            progress = progress,
+            lessonTitle = { lessonId -> data.lessons.firstOrNull { it.id == lessonId }?.title ?: lessonId },
+            onOpenLesson = { onNavigate(CourseRoute.LessonDetail(it)) },
+            onBack = onBack
+        )
         CourseRoute.Settings -> AcademySettingsScreen(
             runtime = runtime,
             onBack = onBack
@@ -311,6 +321,11 @@ private fun CourseHome(
                 ) {
                     Text("ادامه یادگیری: ${lesson.title}")
                 }
+            }
+        }
+        item {
+            Button(onClick = { onNavigate(CourseRoute.Progress) }, modifier = Modifier.fillMaxWidth()) {
+                Text("پیشرفت یادگیری")
             }
         }
         item {
