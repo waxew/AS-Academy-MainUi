@@ -23,10 +23,11 @@ jobs:
         with:
           path: AS-Academy-MainUi
 
-      - name: Checkout AS Academy Core
+      - name: Checkout pinned AS Academy Core
         uses: actions/checkout@v5
         with:
           repository: waxew/AS-Academy-Core
+          ref: a726e18c7e8eb4193567fc72b1f461ae9e88d4be
           path: AS-Academy-Core
 
       - name: Checkout AS Academy MainCourse
@@ -34,6 +35,35 @@ jobs:
         with:
           repository: waxew/AS-Academy-MainCourse
           path: AS-Academy-MainCourse
+
+      - name: Verify Core/MainCourse integration contract
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          contract = json.loads(Path("AS-Academy-Core/integration/contract.json").read_text())
+          schema = contract["contentSchemaVersion"]
+          required = contract["courseManifestRequiredFields"]
+          canonical = 0
+          legacy = []
+          for path in sorted(Path("AS-Academy-MainCourse/courses").glob("*/course/manifest.json")):
+              manifest = json.loads(path.read_text(encoding="utf-8"))
+              if "courseId" not in manifest:
+                  legacy.append(path.parts[-3])
+                  continue
+              canonical += 1
+              missing = [key for key in required if key not in manifest]
+              if missing:
+                  raise SystemExit(f"{path}: missing required contract fields {missing}")
+              if manifest["contentSchemaVersion"] != schema:
+                  raise SystemExit(f"{path}: schema {manifest['contentSchemaVersion']} != Core schema {schema}")
+          if canonical == 0:
+              raise SystemExit("No canonical MainCourse manifests were found")
+          print(f"Validated {canonical} canonical course manifest(s) against Core schema {schema}")
+          if legacy:
+              print("Legacy manifests pending migration: " + ", ".join(legacy))
+          PY
 
       - name: Bundle MainCourse snapshot into viewer assets
         shell: bash
@@ -44,6 +74,7 @@ jobs:
           mkdir -p "$asset_root"
           cp -R AS-Academy-MainCourse/courses "$asset_root/courses"
           git -C AS-Academy-MainCourse rev-parse HEAD > "$asset_root/snapshot-sha.txt"
+          git -C AS-Academy-Core rev-parse HEAD > "$asset_root/core-sha.txt"
           printf 'Bundled %s course folders\n' "$(find "$asset_root/courses" -mindepth 1 -maxdepth 1 -type d | wc -l)"
 
       - name: Validate release-ready MainCourse and audit migrations

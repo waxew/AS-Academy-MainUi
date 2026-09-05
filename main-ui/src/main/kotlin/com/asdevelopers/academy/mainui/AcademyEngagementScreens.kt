@@ -21,14 +21,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.asdevelopers.academy.core.database.BookmarkEntity
-import com.asdevelopers.academy.core.database.UserNoteEntity
+import com.asdevelopers.academy.core.model.AcademyBookmark
+import com.asdevelopers.academy.core.model.AcademyUserNote
 import kotlinx.coroutines.launch
 
-/**
- * Course-scoped bookmark list backed by Core's BookmarkRepository.
- * MainUi owns presentation while Core remains the persistence source of truth.
- */
 @Composable
 fun AcademyBookmarksScreen(
     courseId: String,
@@ -40,15 +36,13 @@ fun AcademyBookmarksScreen(
     val bookmarks by runtime.bookmarkRepository.observeCourse(courseId).collectAsState(initial = emptyList())
     val lessonBookmarks = bookmarks
         .filter { it.targetType == BOOKMARK_TYPE_LESSON }
-        .sortedByDescending(BookmarkEntity::createdAt)
+        .sortedByDescending(AcademyBookmark::createdAtEpochMillis)
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        item {
-            Button(onClick = onBack) { Text("بازگشت") }
-        }
+        item { Button(onClick = onBack) { Text("بازگشت") } }
         item {
             Text("نشان‌شده‌ها", style = MaterialTheme.typography.headlineMedium)
             Text("${lessonBookmarks.size} درس نشان‌شده")
@@ -61,18 +55,12 @@ fun AcademyBookmarksScreen(
                 Button(
                     onClick = { onOpenLesson(bookmark.targetId) },
                     modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(title)
-                }
+                ) { Text(title) }
             }
         }
     }
 }
 
-/**
- * Lesson-scoped notes editor backed by Core's UserNoteRepository.
- * Empty notes never reach the repository and all mutations remain course-aware.
- */
 @Composable
 fun AcademyLessonNotesScreen(
     courseId: String,
@@ -89,9 +77,7 @@ fun AcademyLessonNotesScreen(
         modifier = Modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        item {
-            Button(onClick = onBack) { Text("بازگشت") }
-        }
+        item { Button(onClick = onBack) { Text("بازگشت") } }
         item {
             Text("یادداشت‌های درس", style = MaterialTheme.typography.headlineMedium)
             Text(lessonTitle)
@@ -124,28 +110,21 @@ fun AcademyLessonNotesScreen(
                     }
                 },
                 modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("ذخیره یادداشت")
-            }
+            ) { Text("ذخیره یادداشت") }
         }
         if (notes.isEmpty()) {
             item { Text("برای این درس هنوز یادداشتی ثبت نشده است.") }
         } else {
-            items(notes.sortedByDescending(UserNoteEntity::updatedAt), key = { it.id }) { note ->
+            items(notes.sortedByDescending(AcademyUserNote::updatedAtEpochMillis), key = { it.id }) { note ->
                 NoteCard(
                     note = note,
-                    onDelete = {
-                        scope.launch { runtime.userNoteRepository.remove(note.id) }
-                    }
+                    onDelete = { scope.launch { runtime.userNoteRepository.remove(note.id) } }
                 )
             }
         }
     }
 }
 
-/**
- * Reusable lesson bookmark action. It intentionally knows nothing about navigation.
- */
 @Composable
 fun AcademyLessonBookmarkButton(
     courseId: String,
@@ -182,7 +161,7 @@ fun AcademyLessonBookmarkButton(
 }
 
 @Composable
-private fun NoteCard(note: UserNoteEntity, onDelete: () -> Unit) {
+private fun NoteCard(note: AcademyUserNote, onDelete: () -> Unit) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(14.dp),
