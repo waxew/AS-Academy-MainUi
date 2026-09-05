@@ -32,10 +32,26 @@ require("includeBuild" in settings, "Standalone MainUi development must composit
 rules = contract.get("architectureRules", {})
 require(rules.get("mainUiConsumesCorePublicApiOnly") is True, "MainUi public-API boundary is not enabled")
 
+# MainUi is presentation-only: implementation ownership belongs to Core.
+for source in (ROOT / "main-ui" / "src").rglob("*.kt"):
+    text = source.read_text(encoding="utf-8")
+    rel = source.relative_to(ROOT)
+    for forbidden in (
+        "com.asdevelopers.academy.core.database.",
+        "androidx.room.",
+        "io.supabase.",
+        "java.sql.",
+    ):
+        require(forbidden not in text, f"{rel}: MainUi must not depend on implementation package {forbidden}")
+    require("AcademyDatabase.create(" not in text, f"{rel}: database composition belongs to Core AcademyRuntime")
+
+runtime = (ROOT / "main-ui" / "src" / "main" / "kotlin" / "com" / "asdevelopers" / "academy" / "mainui" / "AcademyMainUiRuntime.kt").read_text(encoding="utf-8")
+require("AcademyRuntime" in runtime, "MainUi runtime must adapt Core AcademyRuntime")
+
 if errors:
     print("Foundation contract validation failed:")
     for error in errors:
         print(f" - {error}")
     sys.exit(1)
 
-print("Foundation contract OK: MainUi is aligned with Core 1.4.0 and Android baseline")
+print("Foundation contract OK: MainUi is presentation-only and aligned with Core runtime")
