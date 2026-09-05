@@ -30,6 +30,7 @@ import com.asdevelopers.academy.core.content.LearningExtrasLoader
 import com.asdevelopers.academy.core.progress.LessonProgress
 import com.asdevelopers.academy.core.progress.LessonStatus
 import com.asdevelopers.academy.core.progress.ProgressEngine
+import com.asdevelopers.academy.core.search.SearchDocument
 import com.asdevelopers.academy.core.ui.screens.AcademyExerciseScreen
 import com.asdevelopers.academy.core.ui.screens.AcademyProjectScreen
 import com.asdevelopers.academy.core.ui.screens.AcademyQuizScreen
@@ -55,10 +56,14 @@ private data class FolderCourseData(
 
 private sealed interface CourseRoute {
     data object Home : CourseRoute
+    data object Catalog : CourseRoute
+    data object Search : CourseRoute
+    data object Bookmarks : CourseRoute
+    data object Achievements : CourseRoute
     data class Chapters(val levelId: String) : CourseRoute
     data class Lessons(val chapterId: String) : CourseRoute
     data class LessonDetail(val lessonId: String) : CourseRoute
-    data object Catalog : CourseRoute
+    data class LessonNotes(val lessonId: String) : CourseRoute
     data class QuizDetail(val quizId: String) : CourseRoute
     data class ExerciseDetail(val exerciseId: String) : CourseRoute
     data class ProjectDetail(val projectId: String) : CourseRoute
@@ -67,9 +72,13 @@ private sealed interface CourseRoute {
 private fun CourseRoute.encode(): String = when (this) {
     CourseRoute.Home -> "home"
     CourseRoute.Catalog -> "catalog"
+    CourseRoute.Search -> "search"
+    CourseRoute.Bookmarks -> "bookmarks"
+    CourseRoute.Achievements -> "achievements"
     is CourseRoute.Chapters -> "chapters:$levelId"
     is CourseRoute.Lessons -> "lessons:$chapterId"
     is CourseRoute.LessonDetail -> "lesson:$lessonId"
+    is CourseRoute.LessonNotes -> "notes:$lessonId"
     is CourseRoute.QuizDetail -> "quiz:$quizId"
     is CourseRoute.ExerciseDetail -> "exercise:$exerciseId"
     is CourseRoute.ProjectDetail -> "project:$projectId"
@@ -81,9 +90,13 @@ private fun decodeRoute(value: String): CourseRoute {
     val id = if (separator >= 0) value.substring(separator + 1) else ""
     return when (key) {
         "catalog" -> CourseRoute.Catalog
+        "search" -> CourseRoute.Search
+        "bookmarks" -> CourseRoute.Bookmarks
+        "achievements" -> CourseRoute.Achievements
         "chapters" -> CourseRoute.Chapters(id)
         "lessons" -> CourseRoute.Lessons(id)
         "lesson" -> CourseRoute.LessonDetail(id)
+        "notes" -> CourseRoute.LessonNotes(id)
         "quiz" -> CourseRoute.QuizDetail(id)
         "exercise" -> CourseRoute.ExerciseDetail(id)
         "project" -> CourseRoute.ProjectDetail(id)
@@ -93,8 +106,7 @@ private fun decodeRoute(value: String): CourseRoute {
 
 /**
  * MainUi host for folder-based Course Packages copied from MainCourse into Android assets.
- * The Course App supplies only courseId/title/branding. Curriculum text is always read from
- * `course/<courseId>` and therefore MainCourse remains the single source of truth.
+ * MainCourse remains the content source of truth; Core owns persisted user state and search.
  */
 @Composable
 fun AcademyFolderCourseHost(
@@ -126,9 +138,19 @@ fun AcademyFolderCourseHost(
         data = null
         error = null
         routeStack = listOf(CourseRoute.Home.encode())
-        runCatching { loadFolderCourse(context.assets, courseId) }
-            .onSuccess { data = it }
-            .onFailure { error = it.message ?: it.toString() }
+        val courseData = try {
+            loadFolderCourse(context.assets, courseId)
+        } catch (throwable: Throwable) {
+            error = throwable.message ?: throwable.toString()
+            return@LaunchedEffect
+        }
+        data = courseData
+        runCatching {
+            resolvedRuntime.searchRepository.replaceCourse(
+                courseId = courseId,
+                documents = courseData.searchDocuments(courseId)
+            )
+        }
     }
 
     AcademyMainUi(
@@ -168,6 +190,29 @@ private fun FolderCourseRouter(
 ) {
     when (route) {
         CourseRoute.Home -> CourseHome(title, data, progress, onNavigate)
+        CourseRoute.Catalog -> Catalog(data, onNavigate, onBack)
+        CourseRoute.Search -> AcademySearchScreen(
+            courseId = courseId,
+            runtime = runtime,
+            onOpenResult = { refId, refType ->
+                if (refType.equals("lesson", ignoreCase = true)) {
+                    onNavigate(CourseRoute.LessonDetail(refId))
+                }
+            },
+            onBack = onBack
+        )
+        CourseRoute.Bookmarks -> AcademyBookmarksScreen(
+            courseId = courseId,
+            runtime = runtime,
+            lessonTitle = { lessonId -> data.lessons.firstOrNull { it.id == lessonId }?.title },
+            onOpenLesson = { onNavigate(CourseRoute.LessonDetail(it)) },
+            onBack = onBack
+        )
+        CourseRoute.Achievements -> AcademyAchievementsScreen(
+            courseId = courseId,
+            runtime = runtime,
+            onBack = onBack
+        )
         is CourseRoute.Chapters -> ChapterList(data, route.levelId, onNavigate, onBack)
         is CourseRoute.Lessons -> LessonList(data, progress, route.chapterId, onNavigate, onBack)
         is CourseRoute.LessonDetail -> {
@@ -175,7 +220,17 @@ private fun FolderCourseRouter(
             if (lesson == null) AcademyMainUiMessage("درس پیدا نشد")
             else LessonReader(courseId, lesson, runtime, onNavigate, onBack)
         }
-        CourseRoute.Catalog -> Catalog(data, onNavigate, onBack)
+        is CourseRoute.LessonNotes -> {
+            val lesson = data.lessons.firstOrNull { it.id == route.lessonId }
+            if (lesson == null) AcademyMainUiMessage("درس پیدا نشد")
+            else AcademyLessonNotesScreen(
+                courseId = courseId,
+                lessonId = lesson.id,
+                lessonTitle = lesson.title,
+                runtime = runtime,
+                onBack = onBack
+            )
+        }
         is CourseRoute.QuizDetail -> {
             val quiz = data.extras.quizzes.firstOrNull { it.id == route.quizId }
             if (quiz == null) AcademyMainUiMessage("آزمون پیدا نشد")
@@ -232,6 +287,21 @@ private fun CourseHome(
             }
         }
         item {
+            Button(onClick = { onNavigate(CourseRoute.Search) }, modifier = Modifier.fillMaxWidth()) {
+                Text("جست‌وجو در دوره")
+            }
+        }
+        item {
+            Button(onClick = { onNavigate(CourseRoute.Bookmarks) }, modifier = Modifier.fillMaxWidth()) {
+                Text("نشان‌شده‌ها")
+            }
+        }
+        item {
+            Button(onClick = { onNavigate(CourseRoute.Achievements) }, modifier = Modifier.fillMaxWidth()) {
+                Text("دستاوردها")
+            }
+        }
+        item {
             Button(onClick = { onNavigate(CourseRoute.Catalog) }, modifier = Modifier.fillMaxWidth()) {
                 Text("تمرین‌ها، آزمون‌ها و پروژه‌ها")
             }
@@ -241,8 +311,7 @@ private fun CourseHome(
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(level.title, style = MaterialTheme.typography.titleLarge)
                     if (level.description.isNotBlank()) Text(level.description)
-                    val chapterCount = data.chapters.count { it.levelId == level.id }
-                    Text("$chapterCount فصل")
+                    Text("${data.chapters.count { it.levelId == level.id }} فصل")
                     Button(onClick = { onNavigate(CourseRoute.Chapters(level.id)) }) { Text("مشاهده فصل‌ها") }
                 }
             }
@@ -251,7 +320,12 @@ private fun CourseHome(
 }
 
 @Composable
-private fun ChapterList(data: FolderCourseData, levelId: String, onNavigate: (CourseRoute) -> Unit, onBack: () -> Unit) {
+private fun ChapterList(
+    data: FolderCourseData,
+    levelId: String,
+    onNavigate: (CourseRoute) -> Unit,
+    onBack: () -> Unit
+) {
     val chapters = data.chapters.filter { it.levelId == levelId }.sortedBy { it.order }
     LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item { BackButton(onBack) }
@@ -339,6 +413,14 @@ private fun LessonReader(
                 runtime = runtime
             )
         }
+        item {
+            Button(
+                onClick = { onNavigate(CourseRoute.LessonNotes(lesson.id)) },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("همه یادداشت‌های این درس")
+            }
+        }
         items(lesson.blocks, key = { it.id }) { block ->
             LessonBlockView(block = block, onNavigate = onNavigate)
         }
@@ -381,27 +463,21 @@ private fun LessonBlockView(block: LessonBlock, onNavigate: (CourseRoute) -> Uni
                 Text(block.content, modifier = Modifier.padding(14.dp), style = style)
             }
         }
-        LessonBlockType.EXERCISE, LessonBlockType.EXERCISE_LINK -> {
-            ReferenceButton(
-                label = block.content.ifBlank { "باز کردن تمرین" },
-                targetId = block.metadata["exerciseId"],
-                onOpen = { onNavigate(CourseRoute.ExerciseDetail(it)) }
-            )
-        }
-        LessonBlockType.QUIZ -> {
-            ReferenceButton(
-                label = block.content.ifBlank { "باز کردن آزمون" },
-                targetId = block.metadata["quizId"],
-                onOpen = { onNavigate(CourseRoute.QuizDetail(it)) }
-            )
-        }
-        LessonBlockType.PROJECT_LINK, LessonBlockType.PROJECT -> {
-            ReferenceButton(
-                label = block.content.ifBlank { "باز کردن پروژه" },
-                targetId = block.metadata["projectId"],
-                onOpen = { onNavigate(CourseRoute.ProjectDetail(it)) }
-            )
-        }
+        LessonBlockType.EXERCISE, LessonBlockType.EXERCISE_LINK -> ReferenceButton(
+            label = block.content.ifBlank { "باز کردن تمرین" },
+            targetId = block.metadata["exerciseId"],
+            onOpen = { onNavigate(CourseRoute.ExerciseDetail(it)) }
+        )
+        LessonBlockType.QUIZ -> ReferenceButton(
+            label = block.content.ifBlank { "باز کردن آزمون" },
+            targetId = block.metadata["quizId"],
+            onOpen = { onNavigate(CourseRoute.QuizDetail(it)) }
+        )
+        LessonBlockType.PROJECT_LINK, LessonBlockType.PROJECT -> ReferenceButton(
+            label = block.content.ifBlank { "باز کردن پروژه" },
+            targetId = block.metadata["projectId"],
+            onOpen = { onNavigate(CourseRoute.ProjectDetail(it)) }
+        )
         else -> Text(block.content, style = style)
     }
 }
@@ -449,6 +525,21 @@ private fun DetailContainer(label: String, onBack: () -> Unit, content: @Composa
 private fun BackButton(onBack: () -> Unit) {
     Button(onClick = onBack) { Text("بازگشت") }
 }
+
+private fun FolderCourseData.searchDocuments(courseId: String): List<SearchDocument> =
+    lessons.map { lesson ->
+        SearchDocument(
+            courseId = courseId,
+            refId = lesson.id,
+            refType = "lesson",
+            title = lesson.title,
+            body = buildString {
+                appendLine(lesson.summary)
+                lesson.blocks.forEach { appendLine(it.content) }
+                append(lesson.tags.joinToString(" "))
+            }
+        )
+    }
 
 private suspend fun loadFolderCourse(assets: AssetManager, courseId: String): FolderCourseData = withContext(Dispatchers.IO) {
     val root = "course/$courseId"
