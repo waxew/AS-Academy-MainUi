@@ -32,18 +32,16 @@ require("includeBuild" in settings, "Standalone MainUi development must composit
 rules = contract.get("architectureRules", {})
 require(rules.get("mainUiConsumesCorePublicApiOnly") is True, "MainUi public-API boundary is not enabled")
 
-# MainUi is presentation-only: implementation ownership belongs to Core.
+# MainUi is presentation-only. It may consume read models currently exposed by Core repositories,
+# but it must never construct/access persistence or backend implementations directly.
 for source in (ROOT / "main-ui" / "src").rglob("*.kt"):
     text = source.read_text(encoding="utf-8")
     rel = source.relative_to(ROOT)
-    for forbidden in (
-        "com.asdevelopers.academy.core.database.",
-        "androidx.room.",
-        "io.supabase.",
-        "java.sql.",
-    ):
+    for forbidden in ("androidx.room.", "io.supabase.", "java.sql."):
         require(forbidden not in text, f"{rel}: MainUi must not depend on implementation package {forbidden}")
-    require("AcademyDatabase.create(" not in text, f"{rel}: database composition belongs to Core AcademyRuntime")
+    require("AcademyDatabase" not in text, f"{rel}: MainUi must not access Core database implementation")
+    require(re.search(r"import\s+com\.asdevelopers\.academy\.core\.database\..*Dao", text) is None,
+            f"{rel}: MainUi must not import Core DAOs")
 
 runtime = (ROOT / "main-ui" / "src" / "main" / "kotlin" / "com" / "asdevelopers" / "academy" / "mainui" / "AcademyMainUiRuntime.kt").read_text(encoding="utf-8")
 require("AcademyRuntime" in runtime, "MainUi runtime must adapt Core AcademyRuntime")
