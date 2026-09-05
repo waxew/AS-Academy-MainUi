@@ -1,6 +1,7 @@
 package com.asdevelopers.academy.mainui
 
 import android.content.res.AssetManager
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -17,6 +18,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -55,6 +57,33 @@ private sealed interface CourseRoute {
     data class ProjectDetail(val projectId: String) : CourseRoute
 }
 
+private fun CourseRoute.encode(): String = when (this) {
+    CourseRoute.Home -> "home"
+    CourseRoute.Catalog -> "catalog"
+    is CourseRoute.Chapters -> "chapters:$levelId"
+    is CourseRoute.Lessons -> "lessons:$chapterId"
+    is CourseRoute.LessonDetail -> "lesson:$lessonId"
+    is CourseRoute.QuizDetail -> "quiz:$quizId"
+    is CourseRoute.ExerciseDetail -> "exercise:$exerciseId"
+    is CourseRoute.ProjectDetail -> "project:$projectId"
+}
+
+private fun decodeRoute(value: String): CourseRoute {
+    val separator = value.indexOf(':')
+    val key = if (separator >= 0) value.substring(0, separator) else value
+    val id = if (separator >= 0) value.substring(separator + 1) else ""
+    return when (key) {
+        "catalog" -> CourseRoute.Catalog
+        "chapters" -> CourseRoute.Chapters(id)
+        "lessons" -> CourseRoute.Lessons(id)
+        "lesson" -> CourseRoute.LessonDetail(id)
+        "quiz" -> CourseRoute.QuizDetail(id)
+        "exercise" -> CourseRoute.ExerciseDetail(id)
+        "project" -> CourseRoute.ProjectDetail(id)
+        else -> CourseRoute.Home
+    }
+}
+
 /**
  * MainUi host for folder-based Course Packages copied from MainCourse into Android assets.
  * The Course App supplies only courseId/title/branding. Curriculum text is always read from
@@ -69,10 +98,24 @@ fun AcademyFolderCourseHost(
 ) {
     val context = LocalContext.current
     var data by remember(courseId) { mutableStateOf<FolderCourseData?>(null) }
-    var error by remember(courseId) { mutableStateOf<String?>(null) }
-    var route by remember(courseId) { mutableStateOf<CourseRoute>(CourseRoute.Home) }
+    var error by rememberSaveable(courseId) { mutableStateOf<String?>(null) }
+    var routeStack by rememberSaveable(courseId) { mutableStateOf(listOf(CourseRoute.Home.encode())) }
+
+    fun navigate(route: CourseRoute) {
+        val encoded = route.encode()
+        if (routeStack.lastOrNull() != encoded) routeStack = routeStack + encoded
+    }
+
+    fun navigateBack() {
+        if (routeStack.size > 1) routeStack = routeStack.dropLast(1)
+    }
+
+    BackHandler(enabled = routeStack.size > 1) { navigateBack() }
 
     LaunchedEffect(courseId) {
+        data = null
+        error = null
+        routeStack = listOf(CourseRoute.Home.encode())
         runCatching { loadFolderCourse(context.assets, courseId) }
             .onSuccess { data = it }
             .onFailure { error = it.message ?: it.toString() }
@@ -91,9 +134,9 @@ fun AcademyFolderCourseHost(
             else -> FolderCourseRouter(
                 title = title,
                 data = requireNotNull(data),
-                route = route,
-                onNavigate = { route = it },
-                onBack = { route = CourseRoute.Home }
+                route = decodeRoute(routeStack.lastOrNull().orEmpty()),
+                onNavigate = { navigate(it) },
+                onBack = { navigateBack() }
             )
         }
     }
@@ -225,24 +268,39 @@ private fun LessonBlockView(block: LessonBlock, onNavigate: (CourseRoute) -> Uni
             }
         }
         LessonBlockType.EXERCISE, LessonBlockType.EXERCISE_LINK -> {
-            val id = block.metadata["exerciseId"]
-            Button(onClick = { if (id != null) onNavigate(CourseRoute.ExerciseDetail(id)) }, modifier = Modifier.fillMaxWidth()) {
-                Text(block.content.ifBlank { "باز کردن تمرین" })
-            }
+            ReferenceButton(
+                label = block.content.ifBlank { "باز کردن تمرین" },
+                targetId = block.metadata["exerciseId"],
+                onOpen = { onNavigate(CourseRoute.ExerciseDetail(it)) }
+            )
         }
         LessonBlockType.QUIZ -> {
-            val id = block.metadata["quizId"]
-            Button(onClick = { if (id != null) onNavigate(CourseRoute.QuizDetail(id)) }, modifier = Modifier.fillMaxWidth()) {
-                Text(block.content.ifBlank { "باز کردن آزمون" })
-            }
+            ReferenceButton(
+                label = block.content.ifBlank { "باز کردن آزمون" },
+                targetId = block.metadata["quizId"],
+                onOpen = { onNavigate(CourseRoute.QuizDetail(it)) }
+            )
         }
         LessonBlockType.PROJECT_LINK, LessonBlockType.PROJECT -> {
-            val id = block.metadata["projectId"]
-            Button(onClick = { if (id != null) onNavigate(CourseRoute.ProjectDetail(id)) }, modifier = Modifier.fillMaxWidth()) {
-                Text(block.content.ifBlank { "باز کردن پروژه" })
-            }
+            ReferenceButton(
+                label = block.content.ifBlank { "باز کردن پروژه" },
+                targetId = block.metadata["projectId"],
+                onOpen = { onNavigate(CourseRoute.ProjectDetail(it)) }
+            )
         }
         else -> Text(block.content, style = style)
+    }
+}
+
+@Composable
+private fun ReferenceButton(label: String, targetId: String?, onOpen: (String) -> Unit) {
+    val validTargetId = targetId?.trim().orEmpty()
+    Button(
+        onClick = { onOpen(validTargetId) },
+        enabled = validTargetId.isNotBlank(),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text(if (validTargetId.isBlank()) "$label — ارجاع نامعتبر" else label)
     }
 }
 
@@ -306,7 +364,46 @@ private suspend fun loadFolderCourse(assets: AssetManager, courseId: String): Fo
         .flatMap { readObjects(assets, "$root/lessons/$it") }
         .map(::parseLesson)
     val extras = LearningExtrasLoader(assets).load(courseId)
-    FolderCourseData(levels, chapters, lessons, extras)
+    val courseData = FolderCourseData(levels, chapters, lessons, extras)
+    val report = CoursePackageValidator.validate(courseData.validationInput())
+    require(report.isValid) {
+        "Course package '$courseId' is invalid:\n${report.errors.joinToString(separator = "\n") { "- $it" }}"
+    }
+    courseData
+}
+
+private fun FolderCourseData.validationInput(): CoursePackageValidationInput {
+    val references = lessons.flatMap { lesson ->
+        lesson.blocks.mapNotNull { block ->
+            when (block.type) {
+                LessonBlockType.EXERCISE, LessonBlockType.EXERCISE_LINK -> BlockReference(
+                    blockId = block.id,
+                    type = BlockReferenceType.EXERCISE,
+                    targetId = block.metadata["exerciseId"]
+                )
+                LessonBlockType.QUIZ -> BlockReference(
+                    blockId = block.id,
+                    type = BlockReferenceType.QUIZ,
+                    targetId = block.metadata["quizId"]
+                )
+                LessonBlockType.PROJECT, LessonBlockType.PROJECT_LINK -> BlockReference(
+                    blockId = block.id,
+                    type = BlockReferenceType.PROJECT,
+                    targetId = block.metadata["projectId"]
+                )
+                else -> null
+            }
+        }
+    }
+    return CoursePackageValidationInput(
+        levelIds = levels.map { it.id },
+        chapters = chapters.map { ChapterReference(it.id, it.levelId) },
+        lessons = lessons.map { LessonReference(it.id, it.chapterId) },
+        blockReferences = references,
+        quizIds = extras.quizzes.map { it.id },
+        exerciseIds = extras.exercises.map { it.id },
+        projectIds = extras.projects.map { it.id }
+    )
 }
 
 private fun parseLesson(json: JSONObject): Lesson = Lesson(

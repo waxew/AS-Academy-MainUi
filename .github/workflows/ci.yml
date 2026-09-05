@@ -61,7 +61,17 @@ jobs:
       - name: Set up Gradle cache
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Test MainUi
+        shell: bash
+        run: |
+          set +e
+          ./AS-Academy-Core/gradlew -p AS-Academy-MainUi :main-ui:testDebugUnitTest --stacktrace --console=plain > mainui-test.log 2>&1
+          status=$?
+          tail -n 250 mainui-test.log
+          exit $status
+
       - name: Compile MainUi and viewer APK
+        if: success()
         shell: bash
         run: |
           set +e
@@ -104,8 +114,10 @@ jobs:
         with:
           name: mainui-diagnostics-${{ github.sha }}
           path: |
+            mainui-test.log
             mainui-build.log
             mainui-lint.log
+            AS-Academy-MainUi/main-ui/build/reports/tests/testDebugUnitTest/
             AS-Academy-MainUi/main-ui/build/reports/lint-results-debug.html
             AS-Academy-MainUi/main-ui/build/reports/lint-results-debug.xml
             AS-Academy-MainUi/academy-viewer/build/reports/lint-results-debug.html
