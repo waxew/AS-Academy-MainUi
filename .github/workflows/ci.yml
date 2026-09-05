@@ -27,7 +27,7 @@ jobs:
         uses: actions/checkout@v5
         with:
           repository: waxew/AS-Academy-Core
-          ref: 1386c4f22d32c77f1bd36c5f609404edd3ae5938
+          ref: a726e18c7e8eb4193567fc72b1f461ae9e88d4be
           path: AS-Academy-Core
 
       - name: Checkout AS Academy MainCourse
@@ -42,13 +42,11 @@ jobs:
           python3 - <<'PY'
           import json
           from pathlib import Path
-
           contract = json.loads(Path("AS-Academy-Core/integration/contract.json").read_text())
           schema = contract["contentSchemaVersion"]
           required = contract["courseManifestRequiredFields"]
           canonical = 0
           legacy = []
-
           for path in sorted(Path("AS-Academy-MainCourse/courses").glob("*/course/manifest.json")):
               manifest = json.loads(path.read_text(encoding="utf-8"))
               if "courseId" not in manifest:
@@ -59,10 +57,7 @@ jobs:
               if missing:
                   raise SystemExit(f"{path}: missing required contract fields {missing}")
               if manifest["contentSchemaVersion"] != schema:
-                  raise SystemExit(
-                      f"{path}: schema {manifest['contentSchemaVersion']} != Core schema {schema}"
-                  )
-
+                  raise SystemExit(f"{path}: schema {manifest['contentSchemaVersion']} != Core schema {schema}")
           if canonical == 0:
               raise SystemExit("No canonical MainCourse manifests were found")
           print(f"Validated {canonical} canonical course manifest(s) against Core schema {schema}")
