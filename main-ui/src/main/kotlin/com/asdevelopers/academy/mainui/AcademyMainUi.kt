@@ -3,6 +3,34 @@ package com.asdevelopers.academy.mainui
 import androidx.compose.runtime.Composable
 import com.asdevelopers.academy.course.model.CourseBranding
 
+/** Features that a thin Course App can explicitly enable in the shared MainUi. */
+enum class AcademyCapability {
+    SEARCH,
+    BOOKMARKS,
+    NOTES,
+    PROGRESS,
+    ACHIEVEMENTS,
+    SETTINGS,
+    PROFILE,
+    SHARE,
+    ABOUT,
+    UPDATE
+}
+
+/**
+ * Host-supplied application metadata.
+ *
+ * Update remains opt-in: MainUi never invents an endpoint or performs an implicit network check.
+ * When [updateUri] is absent, an update action can be hidden or rendered unavailable by the host.
+ */
+data class AcademyAppInfo(
+    val versionName: String = "",
+    val description: String = "",
+    val supportEmail: String = "AS.Developers.Support@Gmail.Com",
+    val shareText: String? = null,
+    val updateUri: String? = null
+)
+
 /**
  * Stable root configuration supplied by a thin Course App.
  *
@@ -13,11 +41,17 @@ data class AcademyMainUiConfig(
     val courseId: String,
     val branding: CourseBranding,
     val darkTheme: Boolean,
-    val capabilities: Set<String> = emptySet()
+    /** Legacy string capability surface retained so existing Course Apps remain source-compatible. */
+    val capabilities: Set<String> = emptySet(),
+    val typedCapabilities: Set<AcademyCapability> = emptySet(),
+    val appInfo: AcademyAppInfo = AcademyAppInfo()
 ) {
     init {
         require(courseId.isNotBlank()) { "courseId must not be blank" }
     }
+
+    fun hasCapability(capability: AcademyCapability): Boolean =
+        capability in typedCapabilities || capability.name in capabilities
 }
 
 /**
