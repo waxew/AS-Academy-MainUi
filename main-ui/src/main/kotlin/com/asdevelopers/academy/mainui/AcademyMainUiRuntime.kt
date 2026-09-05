@@ -5,8 +5,10 @@ import com.asdevelopers.academy.core.database.AcademyDatabase
 import com.asdevelopers.academy.core.repository.AchievementRepository
 import com.asdevelopers.academy.core.repository.BookmarkRepository
 import com.asdevelopers.academy.core.repository.ProgressRepository
+import com.asdevelopers.academy.core.repository.QuizHistoryRepository
 import com.asdevelopers.academy.core.repository.SearchRepository
 import com.asdevelopers.academy.core.repository.UserNoteRepository
+import com.asdevelopers.academy.core.settings.AcademyPreferencesRepository
 
 /**
  * Core-backed state dependencies consumed by MainUi.
@@ -20,18 +22,23 @@ class AcademyMainUiRuntime private constructor(
     val bookmarkRepository: BookmarkRepository,
     val userNoteRepository: UserNoteRepository,
     val searchRepository: SearchRepository,
-    val achievementRepository: AchievementRepository
+    val achievementRepository: AchievementRepository,
+    val quizHistoryRepository: QuizHistoryRepository,
+    val preferencesRepository: AcademyPreferencesRepository
 ) {
     companion object {
         fun create(context: Context, databaseName: String = "as_academy.db"): AcademyMainUiRuntime {
-            val database = AcademyDatabase.create(context.applicationContext, databaseName)
+            val appContext = context.applicationContext
+            val database = AcademyDatabase.create(appContext, databaseName)
             return AcademyMainUiRuntime(
                 database = database,
                 progressRepository = ProgressRepository(database.progressDao()),
                 bookmarkRepository = BookmarkRepository(database.bookmarkDao()),
                 userNoteRepository = UserNoteRepository(database.userNoteDao()),
                 searchRepository = SearchRepository(database.searchDao()),
-                achievementRepository = AchievementRepository(database.achievementDao())
+                achievementRepository = AchievementRepository(database.achievementDao()),
+                quizHistoryRepository = QuizHistoryRepository(database.quizResultDao()),
+                preferencesRepository = AcademyPreferencesRepository(appContext)
             )
         }
     }
