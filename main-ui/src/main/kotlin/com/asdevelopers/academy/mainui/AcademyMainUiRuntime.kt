@@ -12,46 +12,44 @@ import com.asdevelopers.academy.core.repository.ProjectProgressRepository
 import com.asdevelopers.academy.core.repository.QuizHistoryRepository
 import com.asdevelopers.academy.core.repository.SearchRepository
 import com.asdevelopers.academy.core.repository.UserNoteRepository
+import com.asdevelopers.academy.core.runtime.AcademyRuntime
 import com.asdevelopers.academy.core.settings.AcademyPreferencesRepository
 
 /**
- * Core-backed state dependencies consumed by MainUi.
+ * MainUi view of the canonical Core runtime.
  *
- * Keeping these repositories in one runtime object prevents Course Apps from creating their own
- * persistence layer while still allowing tests or specialized hosts to inject controlled instances.
+ * Database, repository and service construction belongs to AS-Academy-Core. MainUi only exposes
+ * the dependencies it consumes so Course hosts cannot accidentally create a parallel persistence
+ * graph that drifts from the Core schema or repository contracts.
  */
 class AcademyMainUiRuntime private constructor(
-    val database: AcademyDatabase,
-    val progressRepository: ProgressRepository,
-    val bookmarkRepository: BookmarkRepository,
-    val userNoteRepository: UserNoteRepository,
-    val searchRepository: SearchRepository,
-    val achievementRepository: AchievementRepository,
-    val quizHistoryRepository: QuizHistoryRepository,
-    val exerciseDraftRepository: ExerciseDraftRepository,
-    val projectProgressRepository: ProjectProgressRepository,
-    val learningCompletionRepository: LearningCompletionRepository,
-    val preferencesRepository: AcademyPreferencesRepository,
-    val studyReminderScheduler: StudyReminderScheduler
+    private val coreRuntime: AcademyRuntime
 ) {
+    val database: AcademyDatabase get() = coreRuntime.database
+    val progressRepository: ProgressRepository get() = coreRuntime.progressRepository
+    val bookmarkRepository: BookmarkRepository get() = coreRuntime.bookmarkRepository
+    val userNoteRepository: UserNoteRepository get() = coreRuntime.userNoteRepository
+    val searchRepository: SearchRepository get() = coreRuntime.searchRepository
+    val achievementRepository: AchievementRepository get() = coreRuntime.achievementRepository
+    val quizHistoryRepository: QuizHistoryRepository get() = coreRuntime.quizHistoryRepository
+    val exerciseDraftRepository: ExerciseDraftRepository get() = coreRuntime.exerciseDraftRepository
+    val projectProgressRepository: ProjectProgressRepository get() = coreRuntime.projectProgressRepository
+    val learningCompletionRepository: LearningCompletionRepository get() = coreRuntime.learningCompletionRepository
+    val preferencesRepository: AcademyPreferencesRepository get() = coreRuntime.preferencesRepository
+    val studyReminderScheduler: StudyReminderScheduler get() = coreRuntime.studyReminderScheduler
+
+    /** Allows advanced hosts/tests to share an already-created Core runtime with MainUi. */
+    fun asCoreRuntime(): AcademyRuntime = coreRuntime
+
     companion object {
-        fun create(context: Context, databaseName: String = "as_academy.db"): AcademyMainUiRuntime {
-            val appContext = context.applicationContext
-            val database = AcademyDatabase.create(appContext, databaseName)
-            return AcademyMainUiRuntime(
-                database = database,
-                progressRepository = ProgressRepository(database.progressDao()),
-                bookmarkRepository = BookmarkRepository(database.bookmarkDao()),
-                userNoteRepository = UserNoteRepository(database.userNoteDao()),
-                searchRepository = SearchRepository(database.searchDao()),
-                achievementRepository = AchievementRepository(database.achievementDao()),
-                quizHistoryRepository = QuizHistoryRepository(database.quizResultDao()),
-                exerciseDraftRepository = ExerciseDraftRepository(database.exerciseDraftDao()),
-                projectProgressRepository = ProjectProgressRepository(database.projectProgressDao()),
-                learningCompletionRepository = LearningCompletionRepository(database.learningCompletionDao()),
-                preferencesRepository = AcademyPreferencesRepository(appContext),
-                studyReminderScheduler = StudyReminderScheduler(appContext)
-            )
-        }
+        fun create(
+            context: Context,
+            databaseName: String = AcademyRuntime.DEFAULT_DATABASE_NAME
+        ): AcademyMainUiRuntime = AcademyMainUiRuntime(
+            AcademyRuntime.create(context, databaseName)
+        )
+
+        /** Reuses an existing Core runtime instead of opening a second database graph. */
+        fun fromCore(runtime: AcademyRuntime): AcademyMainUiRuntime = AcademyMainUiRuntime(runtime)
     }
 }
