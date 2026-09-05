@@ -20,7 +20,6 @@ import com.asdevelopers.academy.core.content.CourseBundle
 import com.asdevelopers.academy.core.settings.AcademyProfile
 import com.asdevelopers.academy.core.ui.components.AcademyAppShell
 import com.asdevelopers.academy.core.ui.components.AcademyDrawerItem
-import com.asdevelopers.academy.core.ui.content.LessonRenderer
 import com.asdevelopers.academy.core.ui.screens.AcademyLearningCatalogScreen
 import com.asdevelopers.academy.core.ui.theme.AcademyTheme
 import com.asdevelopers.academy.course.model.CourseBranding
@@ -146,9 +145,7 @@ fun AcademyCourseHomeScreen(
     }
 }
 
-/**
- * Shared Lesson Reader. Course apps only select a Lesson ID; all block rendering remains centralized.
- */
+/** Shared Lesson Reader. Course apps select a Lesson ID; MainUi owns all block rendering. */
 @Composable
 fun AcademyLessonReaderScreen(
     lesson: Lesson,
@@ -157,7 +154,7 @@ fun AcademyLessonReaderScreen(
     onProjectClick: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    LessonRenderer(
+    AcademyLessonRenderer(
         lesson = lesson,
         modifier = modifier
             .fillMaxSize()
