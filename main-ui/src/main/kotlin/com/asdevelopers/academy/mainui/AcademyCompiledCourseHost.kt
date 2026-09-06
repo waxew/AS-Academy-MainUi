@@ -6,10 +6,13 @@ import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.MenuBook
+import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -23,15 +26,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
 import com.asdevelopers.academy.core.content.AssetCoursePackageSource
 import com.asdevelopers.academy.core.content.CourseBundle
 import com.asdevelopers.academy.core.content.CourseLoadResult
 import com.asdevelopers.academy.core.content.CoursePackageLoader
 import com.asdevelopers.academy.core.exercise.ExerciseDraft
 import com.asdevelopers.academy.core.progress.LearningCompletion
+import com.asdevelopers.academy.core.progress.LearningPathEngine
 import com.asdevelopers.academy.core.progress.LearningTargetType
+import com.asdevelopers.academy.core.review.Flashcard
+import com.asdevelopers.academy.core.review.PlacementEngine
 import com.asdevelopers.academy.core.settings.AcademyProfile
 import com.asdevelopers.academy.core.settings.AcademySettings
 import kotlinx.coroutines.launch
@@ -49,6 +53,7 @@ fun AcademyCompiledCourseHost(
     appTitle: String,
     appInfo: AcademyAppInfo,
     databaseName: String = "as_academy.db",
+    placementQuizId: String? = null,
     modifier: Modifier = Modifier
 ) {
     require(courseId.isNotBlank()) { "courseId must not be blank" }
@@ -117,23 +122,36 @@ fun AcademyCompiledCourseHost(
     }
 
     AcademyPreferenceAwareMainUi(config = config, runtime = runtime) {
+        val drawerItems = buildList {
+            add(AcademyMainUiDrawerItem("compiled-home", "خانه", Icons.Outlined.Home, routeStack.lastOrNull() == CompiledRoute.Home.encode()) {
+                routeStack = listOf(CompiledRoute.Home.encode())
+            })
+            add(AcademyMainUiDrawerItem("compiled-catalog", "تمرین، آزمون و پروژه", Icons.Outlined.MenuBook, false) {
+                navigate(CompiledRoute.Catalog)
+            })
+            if (placementQuizId != null) {
+                add(AcademyMainUiDrawerItem("compiled-placement", "تعیین سطح", Icons.Outlined.MenuBook, false) {
+                    navigate(CompiledRoute.Quiz(placementQuizId))
+                })
+                add(AcademyMainUiDrawerItem("compiled-weak-review", "مرور نقاط ضعف", Icons.Outlined.Refresh, false) {
+                    navigate(CompiledRoute.WeakReview)
+                })
+                add(AcademyMainUiDrawerItem("compiled-flashcards", "مرور فلش‌کارت", Icons.Outlined.Refresh, false) {
+                    navigate(CompiledRoute.Flashcards)
+                })
+            }
+            add(AcademyMainUiDrawerItem("compiled-settings", "تنظیمات", Icons.Outlined.Settings, false) {
+                navigate(CompiledRoute.Settings)
+            })
+            add(AcademyMainUiDrawerItem("compiled-about", "درباره برنامه", Icons.Outlined.Info, false) {
+                navigate(CompiledRoute.About)
+            })
+        }
+
         AcademyMainUiShell(
             title = bundle?.manifest?.titleFa ?: appTitle,
             profile = profile,
-            courseItems = listOf(
-                AcademyMainUiDrawerItem("compiled-home", "خانه", Icons.Outlined.Home, routeStack.lastOrNull() == CompiledRoute.Home.encode()) {
-                    routeStack = listOf(CompiledRoute.Home.encode())
-                },
-                AcademyMainUiDrawerItem("compiled-catalog", "تمرین، آزمون و پروژه", Icons.Outlined.MenuBook, false) {
-                    navigate(CompiledRoute.Catalog)
-                },
-                AcademyMainUiDrawerItem("compiled-settings", "تنظیمات", Icons.Outlined.Settings, false) {
-                    navigate(CompiledRoute.Settings)
-                },
-                AcademyMainUiDrawerItem("compiled-about", "درباره برنامه", Icons.Outlined.Info, false) {
-                    navigate(CompiledRoute.About)
-                }
-            ),
+            courseItems = drawerItems,
             onProfileImageClick = { imagePicker.launch(arrayOf("image/*")) },
             onSettingsClick = { navigate(CompiledRoute.Settings) },
             onShareClick = {
@@ -162,6 +180,7 @@ fun AcademyCompiledCourseHost(
                 else -> CompiledCourseRouter(
                     courseId = courseId,
                     bundle = bundle,
+                    placementQuizId = placementQuizId,
                     route = CompiledRoute.decode(routeStack.lastOrNull().orEmpty()),
                     runtime = runtime,
                     settings = settings,
@@ -197,6 +216,7 @@ fun AcademyCompiledCourseHost(
 private fun CompiledCourseRouter(
     courseId: String,
     bundle: CourseBundle,
+    placementQuizId: String?,
     route: CompiledRoute,
     runtime: AcademyMainUiRuntime,
     settings: AcademySettings,
@@ -212,6 +232,9 @@ private fun CompiledCourseRouter(
         CompiledRoute.Home -> AcademyCourseHomeScreen(
             bundle = bundle,
             onOpenLesson = { onNavigate(CompiledRoute.Lesson(it)) },
+            onOpenPlacement = placementQuizId?.let { id -> { onNavigate(CompiledRoute.Quiz(id)) } },
+            onOpenWeakReview = placementQuizId?.let { { onNavigate(CompiledRoute.WeakReview) } },
+            onOpenFlashcards = placementQuizId?.let { { onNavigate(CompiledRoute.Flashcards) } },
             onOpenLearningCatalog = { onNavigate(CompiledRoute.Catalog) },
             modifier = modifier
         )
@@ -236,6 +259,70 @@ private fun CompiledCourseRouter(
             supportEmail = appInfo.supportEmail,
             modifier = modifier
         )
+        CompiledRoute.Placement -> {
+            val quizId = placementQuizId
+            if (quizId == null) {
+                AcademyMainUiMessage("آزمون تعیین سطح برای این دوره تعریف نشده است.", modifier)
+            } else {
+                val state by remember(courseId, quizId) {
+                    runtime.placementResultRepository.observeLatest(
+                        courseId = courseId,
+                        placementQuizId = quizId,
+                        policy = PlacementEngine.fourLevelPolicy()
+                    )
+                }.collectAsState(initial = null)
+                val placement = state
+                if (placement == null) {
+                    AcademyMainUiMessage("ابتدا آزمون تعیین سطح را کامل کنید.", modifier)
+                } else {
+                    AcademyMainUiPlacementSummaryScreen(
+                        recommendation = placement.recommendation,
+                        weakTags = placement.weakTags,
+                        onStartLevel = { levelType ->
+                            LearningPathEngine.firstLessonIdForLevelType(bundle, levelType)?.let {
+                                onNavigate(CompiledRoute.Lesson(it))
+                            }
+                        },
+                        onReviewWeakTopics = { onNavigate(CompiledRoute.WeakReview) },
+                        modifier = modifier
+                    )
+                }
+            }
+        }
+        CompiledRoute.WeakReview -> {
+            val recommendations by remember(bundle.manifest.version) {
+                runtime.weakTopicReviewRepository.observeRecommendations(bundle)
+            }.collectAsState(initial = emptyList())
+            AcademyMainUiWeakTopicReviewScreen(
+                recommendations = recommendations,
+                onLessonClick = { onNavigate(CompiledRoute.Lesson(it)) },
+                modifier = modifier
+            )
+        }
+        CompiledRoute.Flashcards -> {
+            var cards by remember(bundle.manifest.version) { mutableStateOf<List<Flashcard>>(emptyList()) }
+            val epochDay = System.currentTimeMillis() / MILLIS_PER_DAY
+            LaunchedEffect(bundle.manifest.version) {
+                cards = runtime.flashcardReviewRepository.loadDueCards(bundle, epochDay)
+            }
+            AcademyMainUiFlashcardReviewScreen(
+                cards = cards,
+                onRated = { card, rating ->
+                    scope.launch {
+                        runtime.flashcardReviewRepository.recordReview(
+                            courseId = courseId,
+                            cardId = card.id,
+                            rating = rating,
+                            reviewedEpochDay = epochDay,
+                            updatedAtEpochMillis = System.currentTimeMillis()
+                        )
+                        cards = cards.filterNot { it.id == card.id }
+                    }
+                },
+                onSessionFinished = onBack,
+                modifier = modifier
+            )
+        }
         is CompiledRoute.Lesson -> {
             val lesson = bundle.lessons.firstOrNull { it.id == route.id }
             if (lesson == null) {
@@ -259,7 +346,12 @@ private fun CompiledCourseRouter(
                     quiz = quiz,
                     modifier = modifier,
                     onCompleted = { score ->
-                        scope.launch { runtime.quizHistoryRepository.record(quiz, score, System.currentTimeMillis()) }
+                        scope.launch {
+                            runtime.quizHistoryRepository.record(quiz, score, System.currentTimeMillis())
+                            if (placementQuizId != null && quiz.id == placementQuizId) {
+                                onNavigate(CompiledRoute.Placement)
+                            }
+                        }
                     }
                 )
             }
@@ -340,6 +432,9 @@ private sealed interface CompiledRoute {
     data object Catalog : CompiledRoute
     data object Settings : CompiledRoute
     data object About : CompiledRoute
+    data object Placement : CompiledRoute
+    data object WeakReview : CompiledRoute
+    data object Flashcards : CompiledRoute
     data class Lesson(val id: String) : CompiledRoute
     data class Quiz(val id: String) : CompiledRoute
     data class Exercise(val id: String) : CompiledRoute
@@ -350,6 +445,9 @@ private sealed interface CompiledRoute {
         Catalog -> "catalog"
         Settings -> "settings"
         About -> "about"
+        Placement -> "placement"
+        WeakReview -> "weak-review"
+        Flashcards -> "flashcards"
         is Lesson -> "lesson:$id"
         is Quiz -> "quiz:$id"
         is Exercise -> "exercise:$id"
@@ -365,6 +463,9 @@ private sealed interface CompiledRoute {
                 "catalog" -> Catalog
                 "settings" -> Settings
                 "about" -> About
+                "placement" -> Placement
+                "weak-review" -> WeakReview
+                "flashcards" -> Flashcards
                 "lesson" -> Lesson(id)
                 "quiz" -> Quiz(id)
                 "exercise" -> Exercise(id)
@@ -374,3 +475,5 @@ private sealed interface CompiledRoute {
         }
     }
 }
+
+private const val MILLIS_PER_DAY = 86_400_000L
