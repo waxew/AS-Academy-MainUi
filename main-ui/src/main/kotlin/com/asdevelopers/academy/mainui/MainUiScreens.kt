@@ -167,11 +167,16 @@ fun AcademyMainUiPlacementSummaryScreen(
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Text("نتیجه تعیین سطح", style = MaterialTheme.typography.headlineMedium)
-        Text(recommendation.toString())
+        Text("سطح پیشنهادی: ${recommendation.title}")
+        Text("امتیاز: ${recommendation.scorePercent}٪")
         if (weakTags.isNotEmpty()) Text("موضوعات نیازمند مرور: ${weakTags.joinToString("، ")}")
-        Button(onClick = onReviewWeakTopics, modifier = Modifier.fillMaxWidth()) { Text("مرور نقاط ضعف") }
-        Text("شروع سطح از مسیر Host انجام می‌شود.")
-        @Suppress("UNUSED_VARIABLE") val startLevelCallback = onStartLevel
+        Button(
+            onClick = { onStartLevel(recommendation.levelType) },
+            modifier = Modifier.fillMaxWidth()
+        ) { Text("شروع از ${recommendation.title}") }
+        if (recommendation.reviewWeakTopics || weakTags.isNotEmpty()) {
+            Button(onClick = onReviewWeakTopics, modifier = Modifier.fillMaxWidth()) { Text("مرور نقاط ضعف") }
+        }
     }
 }
 
@@ -186,12 +191,23 @@ fun AcademyMainUiWeakTopicReviewScreen(
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         item { Text("مرور نقاط ضعف", style = MaterialTheme.typography.headlineMedium) }
-        items(recommendations) { recommendation ->
+        if (recommendations.isEmpty()) {
+            item { Text("هنوز داده کافی برای پیشنهاد مرور وجود ندارد.") }
+        }
+        items(recommendations, key = { it.lessonId }) { recommendation ->
             Card(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(12.dp)) { Text(recommendation.toString()) }
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(recommendation.title, style = MaterialTheme.typography.titleMedium)
+                    if (recommendation.matchedTags.isNotEmpty()) {
+                        Text("موضوعات: ${recommendation.matchedTags.joinToString("، ")}")
+                    }
+                    Button(
+                        onClick = { onLessonClick(recommendation.lessonId) },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("مرور درس") }
+                }
             }
         }
-        item { @Suppress("UNUSED_VARIABLE") val callback = onLessonClick }
     }
 }
 
