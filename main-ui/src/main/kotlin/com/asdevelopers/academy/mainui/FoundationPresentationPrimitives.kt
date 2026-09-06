@@ -20,7 +20,6 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -53,9 +52,9 @@ data class AcademyMainUiDrawerItem(
 )
 
 val DefaultMainUiBranding = CourseBranding(
-    primaryColorHex = "#6750A4",
-    secondaryColorHex = "#625B71",
-    accentColorHex = "#7D5260"
+    primaryColorHex = AcademyDesignTokens.Colors.DefaultPrimary,
+    secondaryColorHex = AcademyDesignTokens.Colors.DefaultSecondary,
+    accentColorHex = AcademyDesignTokens.Colors.DefaultAccent
 )
 
 @Composable
@@ -95,9 +94,11 @@ internal fun FoundationAcademyShell(
             TopAppBar(
                 title = { Text(title) },
                 navigationIcon = {
-                    IconButton(onClick = { menuOpen = true }) {
-                        Icon(Icons.Outlined.Menu, contentDescription = "باز کردن منو")
-                    }
+                    AcademyAccessibleIconButton(
+                        icon = Icons.Outlined.Menu,
+                        contentDescription = "باز کردن منو",
+                        onClick = { menuOpen = true }
+                    )
                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                         DropdownMenuItem(
                             text = { Text(profile.displayName.ifBlank { "پروفایل" }) },
@@ -144,11 +145,11 @@ internal fun FoundationLessonRenderer(
 ) {
     LazyColumn(
         modifier = modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-        contentPadding = PaddingValues(4.dp)
+        verticalArrangement = Arrangement.spacedBy(AcademyDesignTokens.Spacing.Md.dp),
+        contentPadding = PaddingValues(AcademyDesignTokens.Spacing.Xs.dp)
     ) {
         item {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(AcademyDesignTokens.Spacing.Sm.dp)) {
                 Text(lesson.title, style = MaterialTheme.typography.headlineMedium)
                 if (lesson.summary.isNotBlank()) Text(lesson.summary, style = MaterialTheme.typography.bodyLarge)
                 Text("زمان تقریبی: ${lesson.estimatedMinutes} دقیقه", style = MaterialTheme.typography.labelMedium)
@@ -177,7 +178,7 @@ private fun AcademyLessonBlock(
         LessonBlockType.TITLE -> Text(block.content, style = MaterialTheme.typography.headlineSmall)
         LessonBlockType.SUBTITLE -> Text(block.content, style = MaterialTheme.typography.titleLarge)
         LessonBlockType.PARAGRAPH -> Text(block.content, style = MaterialTheme.typography.bodyLarge)
-        LessonBlockType.LIST -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        LessonBlockType.LIST -> Column(verticalArrangement = Arrangement.spacedBy(AcademyDesignTokens.Spacing.Xs.dp)) {
             block.content.lineSequence().filter(String::isNotBlank).forEach { line -> Text("• ${line.trim().removePrefix("-").trim()}") }
         }
         LessonBlockType.TABLE -> AcademyTextCard(block.content, monospace = true)
@@ -215,7 +216,7 @@ private fun AcademyTextCard(content: String, monospace: Boolean = false) {
     Card(Modifier.fillMaxWidth()) {
         Text(
             text = content,
-            modifier = Modifier.padding(14.dp),
+            modifier = Modifier.padding(AcademyDesignTokens.Spacing.Lg.dp),
             style = MaterialTheme.typography.bodyMedium,
             fontFamily = if (monospace) FontFamily.Monospace else null
         )
@@ -225,7 +226,10 @@ private fun AcademyTextCard(content: String, monospace: Boolean = false) {
 @Composable
 private fun AcademyLabeledCard(label: String, content: String) {
     Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(
+            Modifier.padding(AcademyDesignTokens.Spacing.Lg.dp),
+            verticalArrangement = Arrangement.spacedBy(AcademyDesignTokens.Spacing.Sm.dp)
+        ) {
             Text(label, style = MaterialTheme.typography.titleSmall)
             Text(content, style = MaterialTheme.typography.bodyMedium)
         }
