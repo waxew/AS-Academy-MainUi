@@ -28,43 +28,21 @@ jobs:
         uses: actions/checkout@v5
         with:
           repository: waxew/AS-Academy-Core
-          ref: dd029bb51dd99a1675f4eb84ecc6d2ea0b419550
+          ref: fdef97043080f51e5a1e5bff4b8d5374543e3365
           path: AS-Academy-Core
 
-      - name: Checkout AS Academy MainCourse
+      - name: Checkout pinned AS Academy MainCourse
         uses: actions/checkout@v5
         with:
           repository: waxew/AS-Academy-MainCourse
+          ref: ef1a69fa23c86af50275ee7ead38641f1643228b
           path: AS-Academy-MainCourse
 
-      - name: Verify Core/MainCourse integration contract
-        shell: bash
-        run: |
-          python3 - <<'PY'
-          import json
-          from pathlib import Path
-          contract = json.loads(Path("AS-Academy-Core/integration/contract.json").read_text())
-          schema = contract["contentSchemaVersion"]
-          required = contract["courseManifestRequiredFields"]
-          canonical = 0
-          legacy = []
-          for path in sorted(Path("AS-Academy-MainCourse/courses").glob("*/course/manifest.json")):
-              manifest = json.loads(path.read_text(encoding="utf-8"))
-              if "courseId" not in manifest:
-                  legacy.append(path.parts[-3])
-                  continue
-              canonical += 1
-              missing = [key for key in required if key not in manifest]
-              if missing:
-                  raise SystemExit(f"{path}: missing required contract fields {missing}")
-              if manifest["contentSchemaVersion"] != schema:
-                  raise SystemExit(f"{path}: schema {manifest['contentSchemaVersion']} != Core schema {schema}")
-          if canonical == 0:
-              raise SystemExit("No canonical MainCourse manifests were found")
-          print(f"Validated {canonical} canonical course manifest(s) against Core schema {schema}")
-          if legacy:
-              print("Legacy manifests pending migration: " + ", ".join(legacy))
-          PY
+      - name: Verify Foundation integration contract
+        run: python3 AS-Academy-Core/integration/validate_contract.py --peer AS-Academy-MainUi/integration/contract.json --peer AS-Academy-MainCourse/integration/contract.json
+
+      - name: Validate release-ready Basic content and audit migrations
+        run: python3 AS-Academy-MainUi/.github/scripts/validate_maincourse_snapshot.py AS-Academy-MainCourse/courses --ready basic --audit-all
 
       - name: Bundle MainCourse snapshot into viewer assets
         shell: bash
@@ -76,16 +54,6 @@ jobs:
           cp -R AS-Academy-MainCourse/courses "$asset_root/courses"
           git -C AS-Academy-MainCourse rev-parse HEAD > "$asset_root/snapshot-sha.txt"
           git -C AS-Academy-Core rev-parse HEAD > "$asset_root/core-sha.txt"
-          printf 'Bundled %s course folders\n' "$(find "$asset_root/courses" -mindepth 1 -maxdepth 1 -type d | wc -l)"
-
-      - name: Validate release-ready MainCourse and audit migrations
-        shell: bash
-        run: |
-          set -o pipefail
-          python3 AS-Academy-MainUi/.github/scripts/validate_maincourse_snapshot.py \
-            AS-Academy-MainCourse/courses \
-            --ready basic \
-            --audit-all 2>&1 | tee maincourse-validation.log
 
       - name: Set up JDK 17
         uses: actions/setup-java@v5
@@ -102,65 +70,27 @@ jobs:
       - name: Set up Gradle cache
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Run Core unit gates
+        run: ./AS-Academy-Core/gradlew -p AS-Academy-Core :engine:test :core:testDebugUnitTest --stacktrace --console=plain
+
       - name: Test MainUi with composite Core
-        shell: bash
-        run: |
-          set +e
-          ./AS-Academy-Core/gradlew -p AS-Academy-MainUi :main-ui:testDebugUnitTest --stacktrace --console=plain > mainui-test.log 2>&1
-          status=$?
-          tail -n 250 mainui-test.log
-          exit $status
+        run: ./AS-Academy-Core/gradlew -p AS-Academy-MainUi :main-ui:testDebugUnitTest --stacktrace --console=plain
 
-      - name: Publish pinned Core artifact chain to Maven Local
-        if: success()
-        shell: bash
-        run: ./AS-Academy-Core/gradlew -p AS-Academy-Core publishToMavenLocal --stacktrace --console=plain
+      - name: Build all MainUi consumers
+        run: ./AS-Academy-Core/gradlew -p AS-Academy-MainUi :main-ui:assembleDebug :academy-viewer:assembleDebug :thin-app-template:assembleDebug --stacktrace --console=plain
 
-      - name: Compile all consumers against Maven-resolved Core
-        if: success()
-        shell: bash
-        env:
-          ACADEMY_USE_PUBLISHED_CORE: "true"
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set +e
-          ./AS-Academy-Core/gradlew -p AS-Academy-MainUi \
-            :main-ui:assembleDebug \
-            :academy-viewer:assembleDebug \
-            :thin-app-template:assembleDebug \
-            --stacktrace --console=plain > mainui-build.log 2>&1
-          status=$?
-          tail -n 250 mainui-build.log
-          exit $status
+      - name: Lint all MainUi consumers
+        run: ./AS-Academy-Core/gradlew -p AS-Academy-MainUi :main-ui:lintDebug :academy-viewer:lintDebug :thin-app-template:lintDebug --stacktrace --console=plain
 
-      - name: Lint all consumers against Maven-resolved Core
-        if: success()
-        shell: bash
-        env:
-          ACADEMY_USE_PUBLISHED_CORE: "true"
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set +e
-          ./AS-Academy-Core/gradlew -p AS-Academy-MainUi \
-            :main-ui:lintDebug \
-            :academy-viewer:lintDebug \
-            :thin-app-template:lintDebug \
-            --stacktrace --console=plain > mainui-lint.log 2>&1
-          status=$?
-          tail -n 250 mainui-lint.log
-          exit $status
-
-      - name: Prepare installable preview APKs
-        if: success()
+      - name: Prepare preview APKs
         shell: bash
         run: |
           mkdir -p dist
-          cp AS-Academy-MainUi/academy-viewer/build/outputs/apk/debug/academy-viewer-debug.apk dist/AS-Academy-MainCourse-0.1.0-preview.apk
-          cp AS-Academy-MainUi/thin-app-template/build/outputs/apk/debug/thin-app-template-debug.apk dist/AS-Academy-ThinApp-0.1.0-preview.apk
+          cp AS-Academy-MainUi/academy-viewer/build/outputs/apk/debug/academy-viewer-debug.apk dist/AS-Academy-MainCourse-preview.apk
+          cp AS-Academy-MainUi/thin-app-template/build/outputs/apk/debug/thin-app-template-debug.apk dist/AS-Academy-ThinApp-preview.apk
           sha256sum dist/*.apk > dist/SHA256SUMS
 
       - name: Upload consumer APKs
-        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: AS-Academy-Consumers-${{ github.sha }}
@@ -168,22 +98,3 @@ jobs:
             dist/*.apk
             dist/SHA256SUMS
           if-no-files-found: error
-
-      - name: Upload MainUi diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: mainui-diagnostics-${{ github.sha }}
-          path: |
-            maincourse-validation.log
-            mainui-test.log
-            mainui-build.log
-            mainui-lint.log
-            AS-Academy-MainUi/main-ui/build/reports/tests/testDebugUnitTest/
-            AS-Academy-MainUi/main-ui/build/reports/lint-results-debug.html
-            AS-Academy-MainUi/main-ui/build/reports/lint-results-debug.xml
-            AS-Academy-MainUi/academy-viewer/build/reports/lint-results-debug.html
-            AS-Academy-MainUi/academy-viewer/build/reports/lint-results-debug.xml
-            AS-Academy-MainUi/thin-app-template/build/reports/lint-results-debug.html
-            AS-Academy-MainUi/thin-app-template/build/reports/lint-results-debug.xml
-          if-no-files-found: warn
