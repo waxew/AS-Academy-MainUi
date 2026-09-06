@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  packages: read
 
 concurrency:
   group: mainui-ci-${{ github.ref }}
@@ -15,7 +16,7 @@ concurrency:
 
 jobs:
   build:
-    name: Build MainUi and integrated MainCourse APK
+    name: Build MainUi, viewer and thin app
     runs-on: ubuntu-latest
     steps:
       - name: Checkout MainUi
@@ -27,7 +28,7 @@ jobs:
         uses: actions/checkout@v5
         with:
           repository: waxew/AS-Academy-Core
-          ref: 93fc56c635ed970ae1b26807b6eb93892398d2d3
+          ref: dd029bb51dd99a1675f4eb84ecc6d2ea0b419550
           path: AS-Academy-Core
 
       - name: Checkout AS Academy MainCourse
@@ -101,7 +102,7 @@ jobs:
       - name: Set up Gradle cache
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Test MainUi
+      - name: Test MainUi with composite Core
         shell: bash
         run: |
           set +e
@@ -110,42 +111,62 @@ jobs:
           tail -n 250 mainui-test.log
           exit $status
 
-      - name: Compile MainUi and viewer APK
+      - name: Publish pinned Core artifact chain to Maven Local
         if: success()
         shell: bash
+        run: ./AS-Academy-Core/gradlew -p AS-Academy-Core publishToMavenLocal --stacktrace --console=plain
+
+      - name: Compile all consumers against Maven-resolved Core
+        if: success()
+        shell: bash
+        env:
+          ACADEMY_USE_PUBLISHED_CORE: "true"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set +e
-          ./AS-Academy-Core/gradlew -p AS-Academy-MainUi :main-ui:assembleDebug :academy-viewer:assembleDebug --stacktrace --console=plain > mainui-build.log 2>&1
+          ./AS-Academy-Core/gradlew -p AS-Academy-MainUi \
+            :main-ui:assembleDebug \
+            :academy-viewer:assembleDebug \
+            :thin-app-template:assembleDebug \
+            --stacktrace --console=plain > mainui-build.log 2>&1
           status=$?
           tail -n 250 mainui-build.log
           exit $status
 
-      - name: Lint MainUi and viewer
+      - name: Lint all consumers against Maven-resolved Core
         if: success()
         shell: bash
+        env:
+          ACADEMY_USE_PUBLISHED_CORE: "true"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set +e
-          ./AS-Academy-Core/gradlew -p AS-Academy-MainUi :main-ui:lintDebug :academy-viewer:lintDebug --stacktrace --console=plain > mainui-lint.log 2>&1
+          ./AS-Academy-Core/gradlew -p AS-Academy-MainUi \
+            :main-ui:lintDebug \
+            :academy-viewer:lintDebug \
+            :thin-app-template:lintDebug \
+            --stacktrace --console=plain > mainui-lint.log 2>&1
           status=$?
           tail -n 250 mainui-lint.log
           exit $status
 
-      - name: Prepare installable preview APK
+      - name: Prepare installable preview APKs
         if: success()
         shell: bash
         run: |
           mkdir -p dist
           cp AS-Academy-MainUi/academy-viewer/build/outputs/apk/debug/academy-viewer-debug.apk dist/AS-Academy-MainCourse-0.1.0-preview.apk
-          sha256sum dist/AS-Academy-MainCourse-0.1.0-preview.apk > dist/AS-Academy-MainCourse-0.1.0-preview.apk.sha256
+          cp AS-Academy-MainUi/thin-app-template/build/outputs/apk/debug/thin-app-template-debug.apk dist/AS-Academy-ThinApp-0.1.0-preview.apk
+          sha256sum dist/*.apk > dist/SHA256SUMS
 
-      - name: Upload MainCourse viewer APK
+      - name: Upload consumer APKs
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: AS-Academy-MainCourse-Viewer-${{ github.sha }}
+          name: AS-Academy-Consumers-${{ github.sha }}
           path: |
-            dist/AS-Academy-MainCourse-0.1.0-preview.apk
-            dist/AS-Academy-MainCourse-0.1.0-preview.apk.sha256
+            dist/*.apk
+            dist/SHA256SUMS
           if-no-files-found: error
 
       - name: Upload MainUi diagnostics
@@ -163,4 +184,6 @@ jobs:
             AS-Academy-MainUi/main-ui/build/reports/lint-results-debug.xml
             AS-Academy-MainUi/academy-viewer/build/reports/lint-results-debug.html
             AS-Academy-MainUi/academy-viewer/build/reports/lint-results-debug.xml
+            AS-Academy-MainUi/thin-app-template/build/reports/lint-results-debug.html
+            AS-Academy-MainUi/thin-app-template/build/reports/lint-results-debug.xml
           if-no-files-found: warn
