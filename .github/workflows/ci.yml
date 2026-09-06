@@ -121,6 +121,23 @@ jobs:
           tail -n 250 screenshot-validation.log
           exit $status
 
+      - name: Prove remote GitHub Packages Core resolution
+        if: success()
+        shell: bash
+        env:
+          ACADEMY_USE_PUBLISHED_CORE: "true"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set +e
+          rm -rf "$HOME/.m2/repository/com/asdevelopers/academy"
+          ./AS-Academy-Core/gradlew -p AS-Academy-MainUi \
+            :main-ui:assembleDebug \
+            --refresh-dependencies \
+            --stacktrace --console=plain > remote-core-resolution.log 2>&1
+          status=$?
+          tail -n 250 remote-core-resolution.log
+          exit $status
+
       - name: Publish pinned Core artifact chain to Maven Local
         if: success()
         shell: bash
@@ -188,6 +205,7 @@ jobs:
             maincourse-validation.log
             mainui-test.log
             screenshot-validation.log
+            remote-core-resolution.log
             mainui-build.log
             mainui-lint.log
             AS-Academy-MainUi/main-ui/build/reports/tests/testDebugUnitTest/
