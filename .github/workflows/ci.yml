@@ -111,6 +111,33 @@ jobs:
           tail -n 250 mainui-test.log
           exit $status
 
+      - name: Validate Compose screenshot baselines
+        if: success()
+        shell: bash
+        run: |
+          set +e
+          ./AS-Academy-Core/gradlew -p AS-Academy-MainUi :main-ui:validateDebugScreenshotTest --stacktrace --console=plain > screenshot-validation.log 2>&1
+          status=$?
+          tail -n 250 screenshot-validation.log
+          exit $status
+
+      - name: Prove remote GitHub Packages Core resolution
+        if: success()
+        shell: bash
+        env:
+          ACADEMY_USE_PUBLISHED_CORE: "true"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set +e
+          rm -rf "$HOME/.m2/repository/com/asdevelopers/academy"
+          ./AS-Academy-Core/gradlew -p AS-Academy-MainUi \
+            :main-ui:assembleDebug \
+            --refresh-dependencies \
+            --stacktrace --console=plain > remote-core-resolution.log 2>&1
+          status=$?
+          tail -n 250 remote-core-resolution.log
+          exit $status
+
       - name: Publish pinned Core artifact chain to Maven Local
         if: success()
         shell: bash
@@ -177,9 +204,12 @@ jobs:
           path: |
             maincourse-validation.log
             mainui-test.log
+            screenshot-validation.log
+            remote-core-resolution.log
             mainui-build.log
             mainui-lint.log
             AS-Academy-MainUi/main-ui/build/reports/tests/testDebugUnitTest/
+            AS-Academy-MainUi/main-ui/build/reports/screenshotTest/
             AS-Academy-MainUi/main-ui/build/reports/lint-results-debug.html
             AS-Academy-MainUi/main-ui/build/reports/lint-results-debug.xml
             AS-Academy-MainUi/academy-viewer/build/reports/lint-results-debug.html

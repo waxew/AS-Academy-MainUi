@@ -1,0 +1,66 @@
+name: Generate Compose Screenshot Baseline
+
+on:
+  push:
+    branches:
+      - 'screenshot-baseline/**'
+    paths:
+      - 'build.gradle.kts'
+      - 'gradle.properties'
+      - 'main-ui/build.gradle.kts'
+      - 'main-ui/src/screenshotTest/**/*.kt'
+      - '.github/workflows/screenshot-baseline.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  update-baseline:
+    runs-on: ubuntu-latest
+    env:
+      ACADEMY_CORE_DIR: AS-Academy-Core
+    steps:
+      - name: Checkout MainUi baseline branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Checkout Foundation Core source
+        uses: actions/checkout@v4
+        with:
+          repository: waxew/AS-Academy-Core
+          ref: dd029bb51dd99a1675f4eb84ecc6d2ea0b419550
+          path: AS-Academy-Core
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android API 36
+        shell: bash
+        run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Generate reference screenshots
+        run: AS-Academy-Core/gradlew -p . :main-ui:updateDebugScreenshotTest
+
+      - name: Commit generated reference PNGs
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add main-ui/src/screenshotTestDebug/reference
+          if git diff --cached --quiet; then
+            echo 'No screenshot baseline changes were generated.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'test: record Compose screenshot baseline'
+          git push origin HEAD:${GITHUB_REF_NAME}
