@@ -49,7 +49,7 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: Generate reference screenshots
-        run: ./gradlew :main-ui:updateDebugScreenshotTest
+        run: AS-Academy-Core/gradlew -p . :main-ui:updateDebugScreenshotTest
 
       - name: Commit generated reference PNGs
         shell: bash
