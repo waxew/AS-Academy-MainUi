@@ -31,6 +31,7 @@ dependencyResolutionManagement {
 rootProject.name = "AS-Academy-MainUi"
 include(":main-ui")
 include(":academy-viewer")
+include(":thin-app-template")
 
 // Composite Core is the default for local cross-repo development.
 // CI/release consumers can force normal Maven resolution to prove that MainUi
