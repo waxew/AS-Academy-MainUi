@@ -21,6 +21,9 @@ class AcademyMainUiRuntime private constructor(
     val exerciseDraftRepository get() = core.exerciseDraftRepository
     val projectProgressRepository get() = core.projectProgressRepository
     val learningCompletionRepository get() = core.learningCompletionRepository
+    val placementResultRepository get() = core.placementResultRepository
+    val weakTopicReviewRepository get() = core.weakTopicReviewRepository
+    val flashcardReviewRepository get() = core.flashcardReviewRepository
     val preferencesRepository get() = core.preferencesRepository
     val studyReminderScheduler get() = core.studyReminderScheduler
 
