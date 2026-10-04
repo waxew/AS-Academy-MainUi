@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#0f172a" />
+  <meta name="description" content="نمای یکپارچه دوره‌های AS Academy MainCourse" />
+  <title>AS Academy MainCourse</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app" class="app-shell">
+    <aside id="drawer" class="drawer" aria-label="منوی اصلی">
+      <div class="drawer-head">
+        <div class="brand-mark">AS</div>
+        <div>
+          <strong>AS Academy</strong>
+          <span>MainCourse Web</span>
+        </div>
+      </div>
+      <nav class="drawer-nav">
+        <button data-action="home">خانه</button>
+        <button data-action="search">جست‌وجوی سراسری</button>
+        <button data-action="bookmarks">نشان‌شده‌ها</button>
+        <button data-action="theme">حالت روشن / تیره</button>
+        <button data-action="share">اشتراک‌گذاری</button>
+        <button data-action="about">درباره نرم‌افزار</button>
+      </nav>
+      <div class="drawer-footer">Develop by AS Team Group</div>
+    </aside>
+
+    <div id="scrim" class="scrim" hidden></div>
+
+    <main class="main">
+      <header class="topbar">
+        <button id="navButton" class="icon-button" aria-label="باز کردن منو">☰</button>
+        <div class="topbar-title">
+          <strong id="pageTitle">AS Academy MainCourse</strong>
+          <span id="snapshotText">در حال بارگذاری محتوا…</span>
+        </div>
+        <button id="installButton" class="install-button" hidden>نصب وب‌اپ</button>
+      </header>
+
+      <section id="content" class="content" aria-live="polite">
+        <div class="loading-card">در حال آماده‌سازی نسخه وب…</div>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="aboutDialog" class="dialog">
+    <h2>درباره نرم‌افزار</h2>
+    <p>نسخه وب یکپارچه AS Academy برای مرور دوره‌ها، درس‌ها، تمرین‌ها، آزمون‌ها، پروژه‌ها و واژه‌نامه MainCourse.</p>
+    <hr />
+    <strong>راه‌های ارتباطی با ما:</strong>
+    <p>AS.Developers.Support@Gmail.Com</p>
+    <p class="muted">Develop by AS Team Group</p>
+    <button data-action="close-about">بستن</button>
+  </dialog>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
