@@ -1,0 +1,21 @@
+{
+  "name": "AS Academy MainCourse",
+  "short_name": "AS Academy",
+  "description": "نمای یکپارچه همه دوره‌های AS Academy MainCourse",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "lang": "fa",
+  "dir": "rtl",
+  "background_color": "#f8fafc",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
